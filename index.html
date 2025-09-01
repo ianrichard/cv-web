@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CV Web Detection</title>
+    <!-- Use TensorFlow.js 2.x for better compatibility -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@2.8.0/dist/tf.min.js"></script>
+    <!-- COCO-SSD for object detection -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.2/dist/coco-ssd.min.js"></script>
+    <!-- MediaPipe for face detection (more reliable than face-api.js) -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection@0.4.1646425229/face_detection.js" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="src/styles/main.css">
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .video-container { position: relative; margin: 20px 0; }
+        #webcam, #output { max-width: 100%; }
+        #output { position: absolute; top: 0; left: 0; pointer-events: none; }
+        .controls { margin: 20px 0; }
+        button { margin: 5px; padding: 10px 20px; }
+        .status { margin: 20px 0; padding: 10px; background: #f0f0f0; border-radius: 5px; }
+        .model-selection { margin: 20px 0; }
+        .performance { margin: 20px 0; padding: 10px; background: #e0f7fa; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Computer Vision Web Detection</h1>
+
+        <div class="video-container">
+            <video id="webcam" autoplay muted playsinline></video>
+            <canvas id="output"></canvas>
+        </div>
+
+        <div class="controls">
+            <button id="startBtn">Start Detection</button>
+            <button id="stopBtn">Stop Detection</button>
+            <input type="file" id="referenceImage" accept="image/*" style="display: none;">
+            <button id="uploadBtn">Upload Reference Photo</button>
+        </div>
+
+        <div class="status">
+            <p id="statusText">Ready to start</p>
+        </div>
+    </div>
+
+    <script type="module" src="src/app.js"></script>
+</body>
+</html>

@@ -1,17 +1,17 @@
 {
-  "name": "yolo-web-object-detection",
+  "name": "cv-web-detection",
   "version": "1.0.0",
-  "description": "Universal object detection web app",
-  "main": "src/index.html",
+  "description": "Cross-platform computer vision web app with object detection",
+  "main": "index.html",
   "type": "module",
   "scripts": {
-    "start": "python3 -m http.server 8080 --directory src",
-    "dev": "vite src --port=8080 --host"
+    "start": "python3 -m http.server 8080",
+    "dev": "vite --port=8080 --host",
+    "clean": "rm -rf dist/ node_modules/.cache"
   },
   "dependencies": {
-    "@tensorflow-models/coco-ssd": "^2.2.3",
-    "@tensorflow/tfjs": "^4.20.0",
-    "@tensorflow/tfjs-backend-webgl": "^4.20.0"
+    "@tensorflow-models/coco-ssd": "^2.2.2",
+    "@tensorflow/tfjs": "^2.8.0"
   },
   "devDependencies": {
     "vite": "^5.4.0"
