@@ -16,18 +16,20 @@
 </head>
 <body>
     <div class="container">
+        <h1>Computer Vision Web Detection</h1>
+
         <div class="model-selection">
             <h3>Select Detection Model</h3>
             <label for="modelSelect">Model & Library:</label>
             <select id="modelSelect">
-                <optgroup label="Object Detection">
+                <optgroup label="Standard Object Detection">
                     <option value="coco-ssd">COCO-SSD (TensorFlow.js - Fast & Reliable)</option>
                     <option value="yolo-v5n">YOLOv5 Nano (YOLOv5.js - Ultra Fast)</option>
                     <option value="yolo-v5s">YOLOv5 Small (YOLOv5.js - Balanced)</option>
                     <option value="yolo-v5m">YOLOv5 Medium (YOLOv5.js - High Accuracy)</option>
                 </optgroup>
-                <optgroup label="Next-Gen Models">
-                    <option value="yolo-e">YOLOE (Tsinghua 2025 - See Anything with Prompts)</option>
+                <optgroup label="Prompt-Based Detection">
+                    <option value="yolo-e">YOLOE (Tsinghua 2025 - See Anything with Text Prompts)</option>
                 </optgroup>
                 <optgroup label="Face Detection">
                     <option value="face-simple">Simple Face Detection (Person-based)</option>
@@ -42,12 +44,13 @@
         </div>
 
         <div class="prompt-section" id="promptSection" style="display: none; margin: 20px 0; padding: 15px; background-color: #333; border-radius: 6px;">
-            <h4 style="color: #00ff00; margin-bottom: 10px;">YOLOE Prompt Input</h4>
-            <input type="text" id="promptInput" placeholder="Enter objects to detect (e.g., person, car, dog, bicycle)"
+            <h4 style="color: #00ff00; margin-bottom: 10px;">🎯 YOLOE Prompt Input</h4>
+            <p style="color: #ccc; font-size: 14px; margin-bottom: 10px;">Tell YOLOE what to look for using text prompts:</p>
+            <input type="text" id="promptInput" placeholder="Enter objects to detect (e.g., person, car, dog, bicycle, phone, cup)"
                    style="width: 70%; padding: 8px; border: 1px solid #00ff00; background-color: #555; color: white; border-radius: 4px;">
             <button id="updatePromptBtn" style="margin-left: 10px;">Update Prompt</button>
             <div style="margin-top: 10px;">
-                <span id="promptStatus" style="color: #00ff00; font-size: 14px;">No prompt set</span>
+                <span id="promptStatus" style="color: #00ff00; font-size: 14px;">Default: person, car, dog, cat</span>
             </div>
         </div>
 

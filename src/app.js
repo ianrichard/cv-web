@@ -71,18 +71,45 @@ class App {
             this.loadSelectedModel();
         });
 
-        document.getElementById('updatePromptBtn').addEventListener('click', () => {
-            const promptInput = document.getElementById('promptInput');
-            if (promptInput && promptInput.value.trim()) {
-                this.modelManager.updateYoloePrompt(promptInput.value.trim());
+        // YOLOE prompt handling - these elements might not exist initially
+        const updatePromptBtn = document.getElementById('updatePromptBtn');
+        const promptInput = document.getElementById('promptInput');
+
+        if (updatePromptBtn) {
+            updatePromptBtn.addEventListener('click', () => {
+                const input = document.getElementById('promptInput');
+                if (input && input.value.trim()) {
+                    this.modelManager.updateYoloePrompt(input.value.trim());
+                }
+            });
+        }
+
+        if (promptInput) {
+            promptInput.addEventListener('keypress', (event) => {
+                if (event.key === 'Enter') {
+                    const input = event.target;
+                    if (input.value.trim()) {
+                        this.modelManager.updateYoloePrompt(input.value.trim());
+                    }
+                }
+            });
+        }
+
+        // Use event delegation for dynamically shown elements
+        document.addEventListener('click', (event) => {
+            if (event.target.id === 'updatePromptBtn') {
+                const input = document.getElementById('promptInput');
+                if (input && input.value.trim()) {
+                    this.modelManager.updateYoloePrompt(input.value.trim());
+                }
             }
         });
 
-        document.getElementById('promptInput').addEventListener('keypress', (event) => {
-            if (event.key === 'Enter') {
-                const promptInput = event.target;
-                if (promptInput.value.trim()) {
-                    this.modelManager.updateYoloePrompt(promptInput.value.trim());
+        document.addEventListener('keypress', (event) => {
+            if (event.target.id === 'promptInput' && event.key === 'Enter') {
+                const input = event.target;
+                if (input.value.trim()) {
+                    this.modelManager.updateYoloePrompt(input.value.trim());
                 }
             }
         });

@@ -138,7 +138,10 @@ export class Detector {
 
             predictions.forEach((pred, index) => {
                 if (usedPredictions.has(index)) return;
-                if (pred.class !== trackedObj.class) return;
+
+                // More flexible class matching to handle variations
+                const classMatch = this.classesMatch(pred.class, trackedObj.class);
+                if (!classMatch) return;
 
                 const distance = this.calculateDistance(trackedObj.bbox, pred.bbox);
                 if (distance < this.maxTrackingDistance && distance < bestDistance) {
@@ -151,10 +154,13 @@ export class Detector {
                 const smoothedBbox = this.smoothBoundingBox(trackedObj.bbox, bestMatch.prediction.bbox);
                 trackedObj.bbox = smoothedBbox;
                 trackedObj.score = bestMatch.prediction.score;
+                // Keep the original class to maintain consistency
+                trackedObj.class = trackedObj.class; // Don't update class to prevent flashing
                 trackedObj.framesSinceLastDetection = 0;
 
                 smoothedPredictions.push({
                     ...bestMatch.prediction,
+                    class: trackedObj.class, // Use consistent class name
                     bbox: smoothedBbox
                 });
                 usedPredictions.add(bestMatch.index);
@@ -164,7 +170,9 @@ export class Detector {
                     smoothedPredictions.push({
                         class: trackedObj.class,
                         score: trackedObj.score * 0.95,
-                        bbox: trackedObj.bbox
+                        bbox: trackedObj.bbox,
+                        isFaceRecognition: trackedObj.isFaceRecognition,
+                        isYoloE: trackedObj.isYoloE
                     });
                 }
             }
@@ -187,12 +195,39 @@ export class Detector {
                 class: pred.class,
                 bbox: pred.bbox,
                 score: pred.score,
+                isFaceRecognition: pred.isFaceRecognition || false,
+                isYoloE: pred.isYoloE || false,
                 framesSinceLastDetection: 0
             });
             smoothedPredictions.push(pred);
         });
 
         return smoothedPredictions;
+    }
+
+    classesMatch(class1, class2) {
+        // Normalize class names for comparison
+        const normalize = (className) => className.toLowerCase().trim();
+        const c1 = normalize(class1);
+        const c2 = normalize(class2);
+
+        // Direct match
+        if (c1 === c2) return true;
+
+        // Handle common variations
+        const variations = {
+            'person': ['face', 'human'],
+            'face': ['person', 'human'],
+            'car': ['vehicle', 'automobile'],
+            'bicycle': ['bike'],
+            'motorcycle': ['motorbike']
+        };
+
+        // Check if either class is a variation of the other
+        if (variations[c1] && variations[c1].includes(c2)) return true;
+        if (variations[c2] && variations[c2].includes(c1)) return true;
+
+        return false;
     }
 
     calculateDistance(bbox1, bbox2) {
@@ -291,16 +326,25 @@ export class Detector {
             this.ctx.fillStyle = color + '40';
             this.ctx.fillRect(x, y - 8, confidenceWidth, 4);
 
-            // Draw label with model indicator
-            const label = `${prediction.class}: ${(prediction.score * 100).toFixed(0)}%`;
+            // Standardize label format - remove model-specific suffixes for consistent display
+            let cleanClassName = prediction.class;
+            if (isYoloE) {
+                // Remove YOLOE suffix for cleaner display, but keep the visual distinction
+                cleanClassName = cleanClassName.replace(' (YOLOE Enhanced)', '').replace(' (YOLOE)', '').replace(' (YOLOE Prompt)', '');
+            }
+
+            const label = `${cleanClassName}: ${(prediction.score * 100).toFixed(0)}%`;
             this.ctx.fillStyle = color;
-            this.ctx.font = isYoloE ? 'bold 14px Arial' : (isFaceRecognition ? 'bold 12px Arial' : 'bold 14px Arial');
+            this.ctx.font = 'bold 14px Arial'; // Standardize font size
 
             const textWidth = this.ctx.measureText(label).width;
             this.ctx.fillRect(x, y - 30, textWidth + 12, 22);
 
             this.ctx.fillStyle = '#000000';
             this.ctx.fillText(label, x + 6, y - 12);
+
+            // Reset line dash for next prediction
+            this.ctx.setLineDash([]);
         });
     }
 }

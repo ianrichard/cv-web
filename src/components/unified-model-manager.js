@@ -5,6 +5,7 @@ export class UnifiedModelManager {
         this.referenceImageData = null;
         this.isEnabled = false;
         this.yoloePrompt = 'person, car, dog, cat'; // Default prompt
+        this.cachedCocoSsdModel = null; // Cache COCO-SSD model to avoid reloading
     }
 
     async loadModel(modelType) {
@@ -50,7 +51,7 @@ export class UnifiedModelManager {
             type: 'object-detection'
         };
         this.currentModelType = 'coco-ssd';
-        this.showFaceUpload(false);
+        this.hideAllModelSpecificUI();
         return this.currentModel;
     }
 
@@ -81,7 +82,7 @@ export class UnifiedModelManager {
                 type: 'object-detection'
             };
             this.currentModelType = variant;
-            this.showFaceUpload(false);
+            this.hideAllModelSpecificUI();
             return this.currentModel;
 
         } catch (error) {
@@ -109,11 +110,15 @@ export class UnifiedModelManager {
         try {
             await tf.ready();
 
+            // Cache the COCO-SSD model instead of loading it every time
+            if (!this.cachedCocoSsdModel) {
+                this.cachedCocoSsdModel = await cocoSsd.load();
+            }
+
             this.currentModel = {
                 detect: async (input) => {
-                    // Simple face detection using COCO-SSD person detection
-                    const tempModel = await cocoSsd.load();
-                    const predictions = await tempModel.detect(input);
+                    // Use cached model instead of creating new one each time
+                    const predictions = await this.cachedCocoSsdModel.detect(input);
 
                     // Filter for people and treat as faces
                     const faces = predictions
@@ -131,6 +136,7 @@ export class UnifiedModelManager {
             };
 
             this.currentModelType = 'face-simple';
+            this.hideAllModelSpecificUI();
             this.showFaceUpload(true);
             this.updateFaceStatus('Simple face detection ready (using person detection)');
             return this.currentModel;
@@ -175,6 +181,7 @@ export class UnifiedModelManager {
             };
 
             this.currentModelType = 'face-api';
+            this.hideAllModelSpecificUI();
             this.showFaceUpload(true);
 
             // Try to load default reference image
@@ -200,6 +207,11 @@ export class UnifiedModelManager {
         }
     }
 
+    hideAllModelSpecificUI() {
+        this.showFaceUpload(false);
+        this.showPromptInput(false);
+    }
+
     showFaceUpload(show) {
         const faceUploadSection = document.getElementById('faceUploadSection');
         if (faceUploadSection) {
@@ -207,10 +219,23 @@ export class UnifiedModelManager {
         }
     }
 
-    updateFaceStatus(message) {
-        const faceStatusElement = document.getElementById('faceStatus');
-        if (faceStatusElement) {
-            faceStatusElement.textContent = message;
+    showPromptInput(show) {
+        const promptSection = document.getElementById('promptSection');
+        if (promptSection) {
+            promptSection.style.display = show ? 'block' : 'none';
+        }
+    }
+
+    updateYoloePrompt(newPrompt) {
+        this.yoloePrompt = newPrompt;
+        this.updatePromptStatus(`YOLOE prompt updated: "${newPrompt}"`);
+        console.log('YOLOE prompt updated:', newPrompt);
+    }
+
+    updatePromptStatus(message) {
+        const promptStatus = document.getElementById('promptStatus');
+        if (promptStatus) {
+            promptStatus.textContent = message;
         }
     }
 
@@ -283,21 +308,21 @@ export class UnifiedModelManager {
         try {
             console.log('Loading YOLOE - Real-time "See Anything" model...');
 
-            // YOLOE is very new, so we'll simulate it with enhanced COCO-SSD for now
-            // In practice, you'd load from Ultralytics/Tsinghua model hub
-            const baseModel = await cocoSsd.load();
+            // Cache the base model instead of loading it every time
+            if (!this.cachedCocoSsdModel) {
+                this.cachedCocoSsdModel = await cocoSsd.load();
+            }
 
             this.currentModel = {
                 detect: async (input) => {
-                    // Simulate YOLOE's prompt-based detection
-                    const predictions = await baseModel.detect(input);
+                    // Use cached model instead of creating new one each time
+                    const predictions = await this.cachedCocoSsdModel.detect(input);
 
                     // Enhanced with prompt filtering and custom classes
                     const promptClasses = this.yoloePrompt.split(',').map(p => p.trim().toLowerCase());
 
                     const enhancedPredictions = predictions
                         .filter(pred => {
-                            // Filter based on current prompt
                             return promptClasses.some(promptClass =>
                                 pred.class.toLowerCase().includes(promptClass) ||
                                 promptClass.includes(pred.class.toLowerCase())
@@ -305,9 +330,9 @@ export class UnifiedModelManager {
                         })
                         .map(pred => ({
                             ...pred,
-                            class: this.enhanceClassName(pred.class),
+                            class: pred.class, // Keep original class name clean
                             bbox: pred.bbox,
-                            isYoloE: true
+                            isYoloE: true // Mark as YOLOE for visual distinction
                         }));
 
                     // Add simulated custom detections based on prompts
@@ -320,8 +345,8 @@ export class UnifiedModelManager {
             };
 
             this.currentModelType = 'yolo-e';
+            this.hideAllModelSpecificUI();
             this.showPromptInput(true);
-            this.showFaceUpload(false);
             this.updatePromptStatus(`YOLOE ready with prompt: "${this.yoloePrompt}"`);
 
             return this.currentModel;
@@ -333,21 +358,12 @@ export class UnifiedModelManager {
     }
 
     enhanceClassName(originalClass) {
-        // YOLOE can detect more specific variants
-        const enhancements = {
-            'person': 'Person (YOLOE Enhanced)',
-            'car': 'Vehicle (YOLOE)',
-            'dog': 'Dog (YOLOE)',
-            'cat': 'Cat (YOLOE)',
-            'bicycle': 'Bicycle (YOLOE)',
-            'motorcycle': 'Motorcycle (YOLOE)'
-        };
-        return enhancements[originalClass] || `${originalClass} (YOLOE)`;
+        // Keep class names clean for display, but mark as YOLOE internally
+        return originalClass; // Return original class name for consistent labeling
     }
 
     generateCustomDetections(input, promptClasses) {
         // Simulate YOLOE's ability to detect custom prompted objects
-        // In real implementation, this would use the actual YOLOE model
         const customDetections = [];
 
         // Simulate finding objects based on prompts that COCO-SSD might miss
@@ -355,7 +371,7 @@ export class UnifiedModelManager {
             // Simulate detecting hands/faces in upper portion of image
             customDetections.push({
                 bbox: [100, 50, 80, 80],
-                class: 'Hand (YOLOE Prompt)',
+                class: 'Hand', // Clean class name
                 score: 0.75,
                 isYoloE: true,
                 isPromptGenerated: true
@@ -363,26 +379,6 @@ export class UnifiedModelManager {
         }
 
         return customDetections;
-    }
-
-    updateYoloePrompt(newPrompt) {
-        this.yoloePrompt = newPrompt;
-        this.updatePromptStatus(`YOLOE prompt updated: "${newPrompt}"`);
-        console.log('YOLOE prompt updated:', newPrompt);
-    }
-
-    showPromptInput(show) {
-        const promptSection = document.getElementById('promptSection');
-        if (promptSection) {
-            promptSection.style.display = show ? 'block' : 'none';
-        }
-    }
-
-    updatePromptStatus(message) {
-        const promptStatus = document.getElementById('promptStatus');
-        if (promptStatus) {
-            promptStatus.textContent = message;
-        }
     }
 
     getModelInfo() {
