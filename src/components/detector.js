@@ -1,6 +1,7 @@
 export class Detector {
     constructor() {
         this.model = null;
+        this.modelType = null;
         this.canvas = document.getElementById('output');
         this.ctx = this.canvas.getContext('2d');
         this.isDetecting = false;
@@ -25,6 +26,10 @@ export class Detector {
         // Face recognition (simplified)
         this.referenceImageData = null;
         this.faceRecognitionEnabled = false;
+
+        // Performance UI elements
+        this.performanceVisible = false;
+        this.objectCount = 0;
     }
 
     detectPlatform() {
@@ -40,9 +45,16 @@ export class Detector {
         }
     }
 
-    setModel(model) {
+    setModel(model, modelType = 'unknown') {
         this.model = model;
-        console.log('COCO-SSD model loaded successfully');
+        this.modelType = modelType;
+        console.log(`Model set: ${modelType}`);
+
+        // Update UI
+        const currentModelSpan = document.getElementById('currentModel');
+        if (currentModelSpan) {
+            currentModelSpan.textContent = modelType;
+        }
     }
 
     async startDetection(videoElement) {
@@ -79,6 +91,7 @@ export class Detector {
             const filteredPredictions = predictions.filter(p => p.score >= this.confidenceThreshold);
             const smoothedPredictions = this.trackAndSmoothPredictions(filteredPredictions);
 
+            this.objectCount = smoothedPredictions.length;
             this.drawPredictions(smoothedPredictions);
             this.updatePerformanceStats(currentTime, inferenceTime);
 
@@ -87,6 +100,10 @@ export class Detector {
         }
 
         this.animationFrame = requestAnimationFrame(() => this.detectLoop(videoElement));
+    }
+
+    setFaceRecognitionManager(faceRecognitionManager) {
+        this.faceRecognitionManager = faceRecognitionManager;
     }
 
     async loadReferenceImage(imagePath = 'images/face.jpg') {
@@ -205,35 +222,85 @@ export class Detector {
             this.fps = this.frameCount;
             this.frameCount = 0;
             this.lastTime = currentTime;
-            console.log(`FPS: ${this.fps}, Inference: ${inferenceTime.toFixed(1)}ms`);
+
+            // Update UI elements
+            this.updatePerformanceUI(inferenceTime);
+
+            console.log(`FPS: ${this.fps}, Inference: ${inferenceTime.toFixed(1)}ms, Objects: ${this.objectCount}`);
+        }
+    }
+
+    updatePerformanceUI(inferenceTime) {
+        const fpsCounter = document.getElementById('fpsCounter');
+        const inferenceTimeSpan = document.getElementById('inferenceTime');
+        const objectCountSpan = document.getElementById('objectCount');
+
+        if (fpsCounter) fpsCounter.textContent = this.fps;
+        if (inferenceTimeSpan) inferenceTimeSpan.textContent = inferenceTime.toFixed(1);
+        if (objectCountSpan) objectCountSpan.textContent = this.objectCount;
+    }
+
+    togglePerformance() {
+        this.performanceVisible = !this.performanceVisible;
+        const performanceStats = document.getElementById('performanceStats');
+        if (performanceStats) {
+            performanceStats.style.display = this.performanceVisible ? 'block' : 'none';
         }
     }
 
     drawPredictions(predictions) {
         predictions.forEach(prediction => {
             const [x, y, width, height] = prediction.bbox;
+            const isFaceRecognition = prediction.isFaceRecognition;
+            const isYoloE = prediction.isYoloE;
+            const isPromptGenerated = prediction.isPromptGenerated;
 
-            // Color coding by class
+            // Enhanced color coding by class and model type
             let color = '#00FF00';
-            if (prediction.class === 'person') color = '#FF6B6B';
-            else if (prediction.class === 'car') color = '#4ECDC4';
-            else if (prediction.class === 'bicycle') color = '#45B7D1';
+            if (isYoloE) {
+                color = isPromptGenerated ? '#FF00FF' : '#00FFFF'; // Magenta for prompt-generated, Cyan for YOLOE
+            } else if (isFaceRecognition) {
+                color = prediction.class === 'You' ? '#FF0000' : '#FFA500';
+            } else {
+                switch (prediction.class) {
+                    case 'person': color = '#FF6B6B'; break;
+                    case 'car': color = '#4ECDC4'; break;
+                    case 'truck': color = '#96CEB4'; break;
+                    case 'bus': color = '#FFEAA7'; break;
+                    case 'bicycle': color = '#45B7D1'; break;
+                    case 'motorcycle': color = '#A29BFE'; break;
+                    case 'dog': color = '#FD79A8'; break;
+                    case 'cat': color = '#FDCB6E'; break;
+                    case 'bird': color = '#6C5CE7'; break;
+                    default: color = '#00FF00';
+                }
+            }
 
-            // Draw bounding box
+            // Draw bounding box with special styling for YOLOE
             this.ctx.strokeStyle = color;
-            this.ctx.lineWidth = 2;
+            this.ctx.lineWidth = isYoloE ? 4 : (isFaceRecognition ? 3 : 2);
+            if (isPromptGenerated) {
+                this.ctx.setLineDash([10, 5]); // Dashed line for prompt-generated
+            } else {
+                this.ctx.setLineDash([]);
+            }
             this.ctx.strokeRect(x, y, width, height);
 
-            // Draw label
+            // Draw confidence bar
+            const confidenceWidth = width * prediction.score;
+            this.ctx.fillStyle = color + '40';
+            this.ctx.fillRect(x, y - 8, confidenceWidth, 4);
+
+            // Draw label with model indicator
             const label = `${prediction.class}: ${(prediction.score * 100).toFixed(0)}%`;
             this.ctx.fillStyle = color;
-            this.ctx.font = 'bold 14px Arial';
+            this.ctx.font = isYoloE ? 'bold 14px Arial' : (isFaceRecognition ? 'bold 12px Arial' : 'bold 14px Arial');
 
             const textWidth = this.ctx.measureText(label).width;
-            this.ctx.fillRect(x, y - 25, textWidth + 10, 20);
+            this.ctx.fillRect(x, y - 30, textWidth + 12, 22);
 
             this.ctx.fillStyle = '#000000';
-            this.ctx.fillText(label, x + 5, y - 8);
+            this.ctx.fillText(label, x + 6, y - 12);
         });
     }
 }

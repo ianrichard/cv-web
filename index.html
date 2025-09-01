@@ -4,29 +4,52 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CV Web Detection</title>
-    <!-- Use TensorFlow.js 2.x for better compatibility -->
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@2.8.0/dist/tf.min.js"></script>
+    <!-- Use TensorFlow.js 3.x with explicit backends -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.20.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-cpu@3.20.0/dist/tf-backend-cpu.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@3.20.0/dist/tf-backend-webgl.min.js"></script>
     <!-- COCO-SSD for object detection -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.2/dist/coco-ssd.min.js"></script>
-    <!-- MediaPipe for face detection (more reliable than face-api.js) -->
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_detection@0.4.1646425229/face_detection.js" crossorigin="anonymous"></script>
+    <!-- YOLO.js for YOLO model support -->
+    <script src="https://cdn.jsdelivr.net/npm/yolov5js@1.4.0/dist/yolov5js.min.js"></script>
     <link rel="stylesheet" href="src/styles/main.css">
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        .container { max-width: 800px; margin: 0 auto; }
-        .video-container { position: relative; margin: 20px 0; }
-        #webcam, #output { max-width: 100%; }
-        #output { position: absolute; top: 0; left: 0; pointer-events: none; }
-        .controls { margin: 20px 0; }
-        button { margin: 5px; padding: 10px 20px; }
-        .status { margin: 20px 0; padding: 10px; background: #f0f0f0; border-radius: 5px; }
-        .model-selection { margin: 20px 0; }
-        .performance { margin: 20px 0; padding: 10px; background: #e0f7fa; border-radius: 5px; }
-    </style>
 </head>
 <body>
     <div class="container">
-        <h1>Computer Vision Web Detection</h1>
+        <div class="model-selection">
+            <h3>Select Detection Model</h3>
+            <label for="modelSelect">Model & Library:</label>
+            <select id="modelSelect">
+                <optgroup label="Object Detection">
+                    <option value="coco-ssd">COCO-SSD (TensorFlow.js - Fast & Reliable)</option>
+                    <option value="yolo-v5n">YOLOv5 Nano (YOLOv5.js - Ultra Fast)</option>
+                    <option value="yolo-v5s">YOLOv5 Small (YOLOv5.js - Balanced)</option>
+                    <option value="yolo-v5m">YOLOv5 Medium (YOLOv5.js - High Accuracy)</option>
+                </optgroup>
+                <optgroup label="Next-Gen Models">
+                    <option value="yolo-e">YOLOE (Tsinghua 2025 - See Anything with Prompts)</option>
+                </optgroup>
+                <optgroup label="Face Detection">
+                    <option value="face-simple">Simple Face Detection (Person-based)</option>
+                    <option value="face-api">Face Detection (Face-API.js - Advanced)</option>
+                </optgroup>
+            </select>
+            <button id="loadModelBtn">Load Model</button>
+        </div>
+
+        <div class="reference-upload" id="faceUploadSection" style="display: none; margin: 20px 0;">
+            <span id="faceStatus">Face detection active - no reference needed</span>
+        </div>
+
+        <div class="prompt-section" id="promptSection" style="display: none; margin: 20px 0; padding: 15px; background-color: #333; border-radius: 6px;">
+            <h4 style="color: #00ff00; margin-bottom: 10px;">YOLOE Prompt Input</h4>
+            <input type="text" id="promptInput" placeholder="Enter objects to detect (e.g., person, car, dog, bicycle)"
+                   style="width: 70%; padding: 8px; border: 1px solid #00ff00; background-color: #555; color: white; border-radius: 4px;">
+            <button id="updatePromptBtn" style="margin-left: 10px;">Update Prompt</button>
+            <div style="margin-top: 10px;">
+                <span id="promptStatus" style="color: #00ff00; font-size: 14px;">No prompt set</span>
+            </div>
+        </div>
 
         <div class="video-container">
             <video id="webcam" autoplay muted playsinline></video>
@@ -34,14 +57,22 @@
         </div>
 
         <div class="controls">
-            <button id="startBtn">Start Detection</button>
+            <button id="startBtn" disabled>Start Detection</button>
             <button id="stopBtn">Stop Detection</button>
-            <input type="file" id="referenceImage" accept="image/*" style="display: none;">
-            <button id="uploadBtn">Upload Reference Photo</button>
+            <button id="performanceBtn">Toggle Performance</button>
+        </div>
+
+        <!-- Performance Stats -->
+        <div class="performance" id="performanceStats" style="display: none;">
+            <h3>Performance Metrics</h3>
+            <p>FPS: <span id="fpsCounter">0</span></p>
+            <p>Inference Time: <span id="inferenceTime">0</span>ms</p>
+            <p>Objects Detected: <span id="objectCount">0</span></p>
+            <p>Current Model: <span id="currentModel">None</span></p>
         </div>
 
         <div class="status">
-            <p id="statusText">Ready to start</p>
+            <p id="statusText">Select and load a model to begin</p>
         </div>
     </div>
 
