@@ -1,20 +1,26 @@
 export class FaceRecognition {
     constructor() {
-        this.blazeFaceModel = null;
-        this.referenceEmbedding = null;
-        this.referenceImage = null;
+        this.model = null;
         this.isLoaded = false;
-        this.similarityThreshold = 0.7;
-        this.showAllFaces = true;
-        this.highlightMatches = true;
+        this.referenceImage = null;
+        this.referenceEmbedding = null;
+        this.similarityThreshold = 0.5;
+
+        // Stable box management
+        this.stableBox = null;
+        this.lastUpdateTime = 0;
+        this.updateInterval = 1000; // Update every 1 second
+        this.frameCounter = 0;
+        this.matchHistory = []; // Track recent matches for stability
+        this.historySize = 10; // Keep last 10 detection results
     }
 
     async loadModel() {
         try {
             console.log('Loading BlazeFace model...');
-            this.blazeFaceModel = await blazeface.load();
+            this.model = await blazeface.load();
             this.isLoaded = true;
-            console.log('BlazeFace model loaded successfully');
+            console.log('BlazeFace model loaded');
             return true;
         } catch (error) {
             console.error('Failed to load BlazeFace model:', error);
@@ -40,147 +46,194 @@ export class FaceRecognition {
 
             this.referenceImage = img;
 
+            // Extract embedding from reference image
             if (this.isLoaded) {
-                this.referenceEmbedding = await this.extractFaceEmbedding(img);
-                console.log('Reference image loaded and processed');
-                return true;
+                this.referenceEmbedding = await this.extractEmbedding(img);
+                console.log('Reference image processed');
             }
+
+            return true;
         } catch (error) {
             console.error('Failed to load reference image:', error);
-            this.referenceImage = null;
-            this.referenceEmbedding = null;
             return false;
         }
     }
 
-    async extractFaceEmbedding(imageElement) {
+    async extractEmbedding(imageElement) {
         if (!this.isLoaded) return null;
 
         try {
-            const predictions = await this.blazeFaceModel.estimateFaces(imageElement, false);
+            const predictions = await this.model.estimateFaces(imageElement, false);
             if (predictions.length > 0) {
-                return this.createSimpleEmbedding(predictions[0]);
+                const face = predictions[0];
+                const width = face.bottomRight[0] - face.topLeft[0];
+                const height = face.bottomRight[1] - face.topLeft[1];
+                const aspect = width / height;
+
+                // Simple feature vector
+                return [width, height, aspect, face.probability || 0.9];
             }
             return null;
         } catch (error) {
-            console.error('Failed to extract face embedding:', error);
+            console.error('Failed to extract embedding:', error);
             return null;
-        }
-    }
-
-    createSimpleEmbedding(face) {
-        const topLeft = face.topLeft;
-        const bottomRight = face.bottomRight;
-        const landmarks = face.landmarks;
-
-        if (!topLeft || !bottomRight) return null;
-
-        const features = [
-            bottomRight[0] - topLeft[0], // width
-            bottomRight[1] - topLeft[1], // height
-            (bottomRight[0] - topLeft[0]) / (bottomRight[1] - topLeft[1]), // aspect ratio
-        ];
-
-        if (landmarks) {
-            const centerX = (topLeft[0] + bottomRight[0]) / 2;
-            const centerY = (topLeft[1] + bottomRight[1]) / 2;
-            const scale = Math.max(bottomRight[0] - topLeft[0], bottomRight[1] - topLeft[1]);
-
-            landmarks.forEach(point => {
-                features.push((point[0] - centerX) / scale);
-                features.push((point[1] - centerY) / scale);
-            });
-        }
-
-        return features;
-    }
-
-    async detect(videoElement) {
-        if (!this.isLoaded) return [];
-
-        try {
-            const predictions = await this.blazeFaceModel.estimateFaces(videoElement, false);
-            const results = [];
-
-            for (const face of predictions) {
-                const topLeft = face.topLeft;
-                const bottomRight = face.bottomRight;
-
-                if (!topLeft || !bottomRight) continue;
-
-                const bbox = [
-                    Math.round(topLeft[0]),
-                    Math.round(topLeft[1]),
-                    Math.round(bottomRight[0] - topLeft[0]),
-                    Math.round(bottomRight[1] - topLeft[1])
-                ];
-
-                // Skip very small faces
-                if (bbox[2] < 30 || bbox[3] < 30) continue;
-
-                let isMatch = false;
-                let similarity = 0;
-
-                // Check similarity with reference if available
-                if (this.referenceEmbedding) {
-                    const currentEmbedding = this.createSimpleEmbedding(face);
-                    if (currentEmbedding) {
-                        similarity = this.calculateSimilarity(this.referenceEmbedding, currentEmbedding);
-                        isMatch = similarity >= this.similarityThreshold;
-                    }
-                }
-
-                // Apply settings filters
-                const shouldShow = this.showAllFaces || (isMatch && this.highlightMatches);
-
-                if (shouldShow) {
-                    results.push({
-                        class: isMatch ? 'Reference Match' : 'Face',
-                        score: Math.max(0.75, face.probability || 0.9),
-                        bbox: bbox,
-                        similarity: similarity,
-                        isMatch: isMatch,
-                        isFaceRecognition: true
-                    });
-                }
-            }
-
-            return results;
-        } catch (error) {
-            console.error('Face detection error:', error);
-            return [];
         }
     }
 
     calculateSimilarity(embedding1, embedding2) {
         if (!embedding1 || !embedding2) return 0;
 
-        const minLength = Math.min(embedding1.length, embedding2.length);
-        let dotProduct = 0;
-        let norm1 = 0;
-        let norm2 = 0;
+        // Normalize the feature vectors to make comparison more stable
+        const normalize = (arr) => {
+            const magnitude = Math.sqrt(arr.reduce((sum, val) => sum + val * val, 0));
+            return magnitude > 0 ? arr.map(val => val / magnitude) : arr;
+        };
 
-        for (let i = 0; i < minLength; i++) {
-            dotProduct += embedding1[i] * embedding2[i];
-            norm1 += embedding1[i] * embedding1[i];
-            norm2 += embedding2[i] * embedding2[i];
+        const norm1 = normalize(embedding1);
+        const norm2 = normalize(embedding2);
+
+        // Calculate cosine similarity instead of euclidean distance
+        let dotProduct = 0;
+        for (let i = 0; i < Math.min(norm1.length, norm2.length); i++) {
+            dotProduct += norm1[i] * norm2[i];
         }
 
-        if (norm1 === 0 || norm2 === 0) return 0;
+        // Convert to similarity score (0-1), cosine similarity is already in [-1, 1]
+        return Math.max(0, (dotProduct + 1) / 2); // Map [-1,1] to [0,1]
+    }
 
-        const similarity = dotProduct / (Math.sqrt(norm1) * Math.sqrt(norm2));
-        return Math.max(0, Math.min(1, similarity));
+    async detect(videoElement) {
+        if (!this.isLoaded || !this.referenceEmbedding) {
+            return this.stableBox ? [this.stableBox] : [];
+        }
+
+        this.frameCounter++;
+        const currentTime = Date.now();
+
+        // Only run actual detection periodically
+        const shouldDetect = currentTime - this.lastUpdateTime >= this.updateInterval;
+
+        if (!shouldDetect && this.stableBox) {
+            // Return existing stable box
+            return [this.stableBox];
+        }
+
+        try {
+            const predictions = await this.model.estimateFaces(videoElement, false);
+
+            let detectionResult = null;
+
+            if (predictions.length > 0) {
+                // Find the best face
+                const bestFace = predictions.reduce((best, face) =>
+                    (face.probability || 0.9) > (best.probability || 0.9) ? face : best
+                );
+
+                const bbox = [
+                    Math.round(bestFace.topLeft[0]),
+                    Math.round(bestFace.topLeft[1]),
+                    Math.round(bestFace.bottomRight[0] - bestFace.topLeft[0]),
+                    Math.round(bestFace.bottomRight[1] - bestFace.topLeft[1])
+                ];
+
+                // Skip tiny faces
+                if (bbox[2] >= 30 && bbox[3] >= 30) {
+                    // Calculate similarity - this is what we actually care about
+                    const currentEmbedding = this.extractEmbeddingFromFace(bestFace);
+                    if (currentEmbedding) {
+                        const similarity = this.calculateSimilarity(this.referenceEmbedding, currentEmbedding);
+                        const isMatch = similarity >= this.similarityThreshold;
+
+                        if (isMatch) {
+                            detectionResult = {
+                                class: 'Face Match',
+                                score: similarity, // Use similarity as the score - this is what matters
+                                bbox: bbox,
+                                similarity: similarity,
+                                isMatch: true,
+                                isFaceRecognition: true
+                            };
+                        }
+                    }
+                }
+            }
+
+            // Update match history
+            this.matchHistory.push(detectionResult);
+            if (this.matchHistory.length > this.historySize) {
+                this.matchHistory.shift();
+            }
+
+            // Decide if we should show a stable box based on recent history
+            const recentMatches = this.matchHistory.filter(r => r !== null);
+            const matchRatio = recentMatches.length / this.matchHistory.length;
+
+            if (shouldDetect) {
+                this.lastUpdateTime = currentTime;
+
+                // Update stable box if we have enough recent matches (>50%)
+                if (matchRatio > 0.5 && detectionResult) {
+                    if (this.stableBox) {
+                        // Smooth transition to new position
+                        this.stableBox = {
+                            ...detectionResult,
+                            bbox: [
+                                Math.round(this.stableBox.bbox[0] * 0.7 + detectionResult.bbox[0] * 0.3),
+                                Math.round(this.stableBox.bbox[1] * 0.7 + detectionResult.bbox[1] * 0.3),
+                                Math.round(this.stableBox.bbox[2] * 0.8 + detectionResult.bbox[2] * 0.2),
+                                Math.round(this.stableBox.bbox[3] * 0.8 + detectionResult.bbox[3] * 0.2)
+                            ],
+                            // Smooth the similarity score too
+                            similarity: this.stableBox.similarity * 0.8 + detectionResult.similarity * 0.2,
+                            score: this.stableBox.similarity * 0.8 + detectionResult.similarity * 0.2
+                        };
+                    } else {
+                        // Create new stable box
+                        this.stableBox = { ...detectionResult };
+                    }
+                } else if (matchRatio < 0.3) {
+                    // Remove stable box if too few recent matches
+                    this.stableBox = null;
+                }
+            }
+
+            return this.stableBox ? [this.stableBox] : [];
+
+        } catch (error) {
+            console.error('Face detection error:', error);
+            return this.stableBox ? [this.stableBox] : [];
+        }
+    }
+
+    // Extract embedding from a specific face detection
+    extractEmbeddingFromFace(face) {
+        if (!face.topLeft || !face.bottomRight) return null;
+
+        const width = face.bottomRight[0] - face.topLeft[0];
+        const height = face.bottomRight[1] - face.topLeft[1];
+        const aspect = width / height;
+
+        // Simple feature vector based on face dimensions and landmarks
+        const features = [width, height, aspect, face.probability || 0.9];
+
+        // Add landmark features if available
+        if (face.landmarks && face.landmarks.length > 0) {
+            // Normalize landmarks relative to face box
+            const centerX = (face.topLeft[0] + face.bottomRight[0]) / 2;
+            const centerY = (face.topLeft[1] + face.bottomRight[1]) / 2;
+
+            face.landmarks.forEach(point => {
+                features.push((point[0] - centerX) / width);
+                features.push((point[1] - centerY) / height);
+            });
+        }
+
+        return features;
     }
 
     updateSettings(settings) {
         if (settings.similarityThreshold !== undefined) {
             this.similarityThreshold = settings.similarityThreshold;
-        }
-        if (settings.showAllFaces !== undefined) {
-            this.showAllFaces = settings.showAllFaces;
-        }
-        if (settings.highlightMatches !== undefined) {
-            this.highlightMatches = settings.highlightMatches;
         }
     }
 }

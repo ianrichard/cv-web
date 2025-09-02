@@ -21,43 +21,38 @@ export class DetectionSmoother {
 
     smoothDetections(rawDetections) {
         this.frameCounter++;
-
         const smoothedDetections = [];
         const usedDetections = new Set();
 
-        // For face recognition, pass through completely unchanged - no additional smoothing
+        // Separate face and non-face detections
         const faceDetections = rawDetections.filter(d => d.isFaceRecognition);
         const otherDetections = rawDetections.filter(d => !d.isFaceRecognition);
 
-        // Add face detections directly with no processing
+        // Pass through face detections completely unchanged - they handle their own stability
         faceDetections.forEach(detection => {
             smoothedDetections.push({
                 ...detection,
-                id: 'face'
+                id: 'face-' + this.frameCounter // Simple ID for faces
             });
         });
 
-        // Handle non-face detections with normal smoothing
+        // Handle object detections with normal heavy smoothing
         const shouldUpdate = this.frameCounter % this.updateInterval === 0;
         const shouldVisuallyUpdate = this.frameCounter % this.visualUpdateInterval === 0;
 
-        // Sort tracked objects by stability first, then confidence
         const sortedTracked = Array.from(this.trackedObjects.entries())
+            .filter(([,tracked]) => !tracked.isFaceRecognition) // Only non-face objects
             .sort(([,a], [,b]) => {
                 const stabilityDiff = (b.stabilityFrames || 0) - (a.stabilityFrames || 0);
                 if (Math.abs(stabilityDiff) > 30) return stabilityDiff;
                 return (b.confidence || 0) - (a.confidence || 0);
             });
 
-        // Update existing tracked objects (for non-face objects only)
         for (const [id, tracked] of sortedTracked) {
-            if (tracked.isFaceRecognition) continue; // Skip faces
-
             let bestMatch = null;
             let bestDistance = Infinity;
             let bestIndex = -1;
 
-            // Find best matching detection
             otherDetections.forEach((detection, detectionIndex) => {
                 if (usedDetections.has(detectionIndex)) return;
 
@@ -72,7 +67,6 @@ export class DetectionSmoother {
             });
 
             if (bestMatch) {
-                // Normal object smoothing logic
                 const isStableObject = bestDistance < 20 && (tracked.stabilityFrames || 0) > 60;
 
                 if (shouldUpdate || !isStableObject || (tracked.framesSinceDetection || 0) > 10) {
@@ -115,7 +109,6 @@ export class DetectionSmoother {
 
                 usedDetections.add(bestIndex);
             } else {
-                // Object not detected - fade logic for non-faces
                 tracked.framesSinceDetection = (tracked.framesSinceDetection || 0) + 1;
                 tracked.framesSinceLastVisualUpdate = (tracked.framesSinceLastVisualUpdate || 0) + 1;
 
@@ -143,7 +136,7 @@ export class DetectionSmoother {
             }
         }
 
-        // Add new detections (non-face only)
+        // Add new non-face detections
         otherDetections.forEach((detection, detectionIndex) => {
             if (!usedDetections.has(detectionIndex)) {
                 const newId = this.nextId++;
@@ -170,7 +163,7 @@ export class DetectionSmoother {
             }
         });
 
-        // Clean up old objects
+        // Clean up old objects (including old faces)
         if (this.frameCounter % 300 === 0) {
             this.cleanupOldObjects();
         }
@@ -236,10 +229,14 @@ export class DetectionSmoother {
     cleanupOldObjects() {
         const now = Date.now();
         for (const [id, tracked] of this.trackedObjects) {
-            // Only remove objects that are VERY old and have been undetected for a long time
-            if (tracked.framesSinceDetection >= this.maxFramesWithoutDetection &&
-                tracked.confidence < 0.01 &&
-                now - tracked.createdAt > 20000) { // 20 seconds minimum life
+            // For faces, remove after 3 seconds of no detection
+            // For objects, use the old logic
+            const maxFrames = tracked.isFaceRecognition ? 90 : this.maxFramesWithoutDetection;
+            const maxTime = tracked.isFaceRecognition ? 5000 : 20000;
+
+            if (tracked.framesSinceDetection >= maxFrames &&
+                (!tracked.confidence || tracked.confidence < 0.01) &&
+                now - tracked.createdAt > maxTime) {
                 this.trackedObjects.delete(id);
             }
         }

@@ -1,13 +1,13 @@
 import { Detector } from './components/detector.js';
 import { SimpleModelManager } from './components/simple-model-manager.js';
-import { FaceRecognition } from './components/face-recognition.js';
+import { FaceDetector } from './components/face-detector.js'; // Use the dedicated FaceDetector
 import { UI } from './components/ui.js';
 
 class App {
     constructor() {
         this.detector = new Detector();
         this.modelManager = new SimpleModelManager();
-        this.faceRecognition = new FaceRecognition();
+        this.faceDetector = new FaceDetector(); // Use dedicated face detector only
         this.ui = new UI();
         this.video = null;
         this.isDetectionRunning = false;
@@ -16,7 +16,7 @@ class App {
         // Expose for debugging
         window.detector = this.detector;
         window.modelManager = this.modelManager;
-        window.faceRecognition = this.faceRecognition;
+        window.faceDetector = this.faceDetector; // Fixed: correct reference
     }
 
     async init() {
@@ -33,7 +33,7 @@ class App {
             this.ui.updateStatus('Loading models...');
             await Promise.all([
                 this.loadObjectDetectionModel(),
-                this.loadFaceRecognitionModel()
+                this.loadFaceDetectionModel()
             ]);
 
             this.ui.updateStatus('Ready - Click Start Detection');
@@ -73,12 +73,13 @@ class App {
         }
     }
 
-    async loadFaceRecognitionModel() {
+    async loadFaceDetectionModel() {
         try {
-            await this.faceRecognition.loadModel();
-            await this.faceRecognition.loadReferenceImage();
+            await this.faceDetector.loadModel();
+            await this.faceDetector.loadReferenceImage();
+            this.faceDetector.setCanvas(document.getElementById('output'));
         } catch (error) {
-            console.error('Face recognition model loading failed:', error);
+            console.error('Face detection model loading failed:', error);
         }
     }
 
@@ -112,23 +113,23 @@ class App {
         const resetBtn = document.getElementById('resetReferenceBtn');
         const thresholdSlider = document.getElementById('similarityThreshold');
         const thresholdValue = document.getElementById('thresholdValue');
-        const showAllFaces = document.getElementById('showAllFaces');
-        const highlightMatches = document.getElementById('highlightMatches');
 
         // Upload reference image
         uploadBtn.addEventListener('click', () => fileInput.click());
 
-        fileInput.addEventListener('change', (e) => {
+        fileInput.addEventListener('change', async (e) => {
             const file = e.target.files[0];
             if (file && file.type.startsWith('image/')) {
                 const reader = new FileReader();
-                reader.onload = (e) => {
+                reader.onload = async (e) => {
                     const img = new Image();
-                    img.onload = () => {
-                        this.faceRecognition.loadReferenceImage(img);
+                    img.onload = async () => {
+                        console.log('Uploading new reference image...');
+                        await this.faceDetector.loadReferenceImage(img);
                         document.getElementById('referencePreview').src = e.target.result;
                         document.getElementById('referencePreview').style.display = 'block';
                         document.querySelector('.no-image').style.display = 'none';
+                        console.log('Reference image UI updated');
                     };
                     img.src = e.target.result;
                 };
@@ -137,28 +138,23 @@ class App {
         });
 
         // Reset to default
-        resetBtn.addEventListener('click', () => {
-            this.faceRecognition.loadReferenceImage();
+        resetBtn.addEventListener('click', async () => {
+            console.log('Resetting to default reference image...');
+            await this.faceDetector.loadReferenceImage();
             document.getElementById('referencePreview').src = '/images/face.jpg';
             document.getElementById('referencePreview').style.display = 'block';
             document.querySelector('.no-image').style.display = 'none';
+            console.log('Reset to default reference image complete');
         });
 
         // Similarity threshold
         thresholdSlider.addEventListener('input', (e) => {
             const value = parseFloat(e.target.value);
-            thresholdValue.textContent = value.toFixed(1);
-            this.faceRecognition.updateSettings({ similarityThreshold: value });
+            thresholdValue.textContent = value.toFixed(2);
+            this.faceDetector.updateSettings({ similarityThreshold: value });
         });
 
-        // Checkboxes
-        showAllFaces.addEventListener('change', (e) => {
-            this.faceRecognition.updateSettings({ showAllFaces: e.target.checked });
-        });
-
-        highlightMatches.addEventListener('change', (e) => {
-            this.faceRecognition.updateSettings({ highlightMatches: e.target.checked });
-        });
+        thresholdValue.textContent = '0.50';
     }
 
     switchDemoMode(mode) {
@@ -171,21 +167,14 @@ class App {
         this.currentMode = mode;
         document.getElementById('currentMode').textContent = mode === 'objects' ? 'Objects' : 'Face';
 
-        // Update detector model
+        // DO NOT set up any model wrappers for face mode - let it run independently
         if (mode === 'objects') {
             const modelWrapper = {
                 detect: (input) => this.modelManager.detect(input)
             };
             this.detector.setModel(modelWrapper, 'COCO-SSD');
-        } else {
-            const modelWrapper = {
-                detect: (input) => this.faceRecognition.detect(input)
-            };
-            this.detector.setModel(modelWrapper, 'BlazeFace');
         }
-
-        // Reset smoothing when switching modes
-        this.detector.resetSmoothing();
+        // Face mode doesn't use the detector at all
 
         if (wasRunning) {
             setTimeout(() => this.startDetection(), 100);
@@ -241,7 +230,13 @@ class App {
             mainContainer.classList.remove('panel-open');
         }
 
-        this.detector.startDetection(this.video);
+        // Use the appropriate detector based on mode
+        if (this.currentMode === 'face') {
+            this.faceDetector.startDetection(this.video);
+        } else {
+            this.detector.startDetection(this.video);
+        }
+
         this.ui.updateStatus(`${this.currentMode === 'objects' ? 'Object' : 'Face'} detection running...`);
     }
 
@@ -256,7 +251,10 @@ class App {
         statusSpan.classList.remove('running');
         statusSpan.classList.add('stopped');
 
+        // Stop both detectors to be safe
         this.detector.stopDetection();
+        this.faceDetector.stopDetection();
+
         this.ui.updateStatus('Detection stopped');
     }
 }

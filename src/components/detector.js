@@ -47,6 +47,9 @@ export class Detector {
             updateInterval: 30           // Only update every 30 frames (~1 second)
         });
 
+        // Add frame counter for face rendering control
+        this.faceRenderCounter = 0;
+
         // Setup resize observer for responsive canvas
         this.setupResizeObserver();
     }
@@ -152,7 +155,7 @@ export class Detector {
             // Filter by confidence threshold first
             const filteredPredictions = rawPredictions.filter(p => p.score >= this.confidenceThreshold);
 
-            // Apply smoothing to reduce jumpiness - this is the key step
+            // Apply smoothing to reduce jumpiness - this handles faces and objects
             const smoothedPredictions = this.smoother.smoothDetections(filteredPredictions);
 
             this.objectCount = smoothedPredictions.length;
@@ -224,50 +227,35 @@ export class Detector {
     }
 
     drawPredictions(predictions, videoElement) {
-        // Calculate scaling factors for responsive drawing
-        const videoRect = videoElement.getBoundingClientRect();
-        const containerRect = this.canvas.parentElement.getBoundingClientRect();
+        const canvasLogicalWidth = this.canvasWidth;
+        const canvasLogicalHeight = this.canvasHeight;
 
-        // Account for object-fit: cover scaling
         const videoAspect = videoElement.videoWidth / videoElement.videoHeight;
-        const containerAspect = this.canvasWidth / this.canvasHeight;
+        const containerAspect = canvasLogicalWidth / canvasLogicalHeight;
 
         let scaleX, scaleY, offsetX = 0, offsetY = 0;
 
         if (videoAspect > containerAspect) {
-            // Video is wider than container - fit to height, crop sides
-            scaleY = this.canvasHeight / videoElement.videoHeight;
+            scaleY = canvasLogicalHeight / videoElement.videoHeight;
             scaleX = scaleY;
-            offsetX = (this.canvasWidth - (videoElement.videoWidth * scaleX)) / 2;
+            offsetX = (canvasLogicalWidth - (videoElement.videoWidth * scaleX)) / 2;
         } else {
-            // Video is taller than container - fit to width, crop top/bottom
-            scaleX = this.canvasWidth / videoElement.videoWidth;
+            scaleX = canvasLogicalWidth / videoElement.videoWidth;
             scaleY = scaleX;
-            offsetY = (this.canvasHeight - (videoElement.videoHeight * scaleY)) / 2;
+            offsetY = (canvasLogicalHeight - (videoElement.videoHeight * scaleY)) / 2;
         }
 
         predictions.forEach(prediction => {
             const [x, y, width, height] = prediction.bbox;
-            const isFaceRecognition = prediction.isFaceRecognition;
-            const isYoloE = prediction.isYoloE;
-            const isPromptGenerated = prediction.isPromptGenerated;
-            const isTracked = prediction.isTracked;
-            const isFading = prediction.isFading;
-            const isNew = prediction.isNew;
-            const isMatch = prediction.isMatch;
-
-            // Scale coordinates to canvas size
             const scaledX = (x * scaleX) + offsetX;
             const scaledY = (y * scaleY) + offsetY;
             const scaledWidth = width * scaleX;
             const scaledHeight = height * scaleY;
 
-            // Enhanced color coding
+            // Color coding
             let color = '#00FF00';
-            if (isYoloE) {
-                color = isPromptGenerated ? '#FF00FF' : '#00FFFF';
-            } else if (isFaceRecognition) {
-                color = isMatch ? '#FF0000' : '#FFA500'; // Red for matches, orange for other faces
+            if (prediction.isFaceRecognition) {
+                color = '#FF0000'; // Always red for face matches
             } else {
                 switch (prediction.class) {
                     case 'person': color = '#FF6B6B'; break;
@@ -283,43 +271,22 @@ export class Detector {
                 }
             }
 
-            // Adjust opacity based on tracking state to reduce flickering
-            let alpha = 'FF';
-            let lineWidth = 2;
-
-            if (isNew) {
-                alpha = 'AA'; // Slightly transparent for new objects
-            } else if (isFading) {
-                alpha = '60'; // More transparent for fading objects
-                lineWidth = 1.5;
-            } else if (isTracked) {
-                alpha = '90'; // Slightly transparent for tracked objects
-                lineWidth = 1.8;
-            }
-
             // Draw bounding box
-            this.ctx.strokeStyle = color + alpha;
-            this.ctx.lineWidth = isYoloE ? 4 : (isFaceRecognition ? 3 : lineWidth);
-            if (isPromptGenerated) {
-                this.ctx.setLineDash([10, 5]);
-            } else {
-                this.ctx.setLineDash([]);
-            }
+            this.ctx.strokeStyle = color;
+            this.ctx.lineWidth = prediction.isFaceRecognition ? 3 : 2;
+            this.ctx.setLineDash([]);
             this.ctx.strokeRect(scaledX, scaledY, scaledWidth, scaledHeight);
 
-            // Clean label format
-            let cleanClassName = prediction.class;
-            if (isYoloE) {
-                cleanClassName = cleanClassName.replace(' (YOLOE Enhanced)', '').replace(' (YOLOE)', '').replace(' (YOLOE Prompt)', '');
+            // Draw label - simplified for face recognition
+            let label;
+            if (prediction.isFaceRecognition) {
+                // Only show the similarity percentage - that's what matters
+                label = `${prediction.class} ${(prediction.similarity * 100).toFixed(0)}%`;
+            } else {
+                // Regular object detection label
+                label = `${prediction.class}: ${(prediction.score * 100).toFixed(0)}%`;
             }
 
-            // Add similarity info for face matches
-            let label = `${cleanClassName}: ${(prediction.score * 100).toFixed(0)}%`;
-            if (isFaceRecognition && prediction.similarity !== undefined) {
-                label += ` (${(prediction.similarity * 100).toFixed(0)}% match)`;
-            }
-
-            // Set font size properly scaled for high-DPI
             const baseFontSize = 14;
             this.ctx.font = `bold ${baseFontSize}px Arial`;
             this.ctx.textAlign = 'left';
@@ -329,16 +296,11 @@ export class Detector {
             const textWidth = textMetrics.width;
             const textHeight = baseFontSize * 1.2;
 
-            // Draw background for text with same alpha
-            this.ctx.fillStyle = color + alpha;
+            this.ctx.fillStyle = color;
             this.ctx.fillRect(scaledX, scaledY - textHeight - 8, textWidth + 12, textHeight + 4);
 
-            // Draw text
             this.ctx.fillStyle = '#000000';
             this.ctx.fillText(label, scaledX + 6, scaledY - textHeight - 4);
-
-            // Reset line dash
-            this.ctx.setLineDash([]);
         });
     }
 
