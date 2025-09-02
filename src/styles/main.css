@@ -489,3 +489,202 @@ body {
         grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
     }
 }
+
+/* Demo section styles */
+.demo-section {
+    flex: 1;
+}
+
+.demo-header {
+    margin-bottom: 1rem;
+}
+
+.demo-header h3 {
+    color: white;
+    margin: 0;
+}
+
+/* Demo tabs */
+.demo-tabs {
+    display: flex;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    margin-bottom: 1rem;
+}
+
+.demo-tab {
+    background: transparent;
+    color: rgba(255, 255, 255, 0.7);
+    border: none;
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    font-size: 0.9rem;
+    border-bottom: 2px solid transparent;
+    transition: all 0.3s;
+}
+
+.demo-tab:hover {
+    color: rgba(255, 255, 255, 0.9);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.demo-tab.active {
+    color: white;
+    border-bottom-color: #007bff;
+}
+
+/* Demo content */
+.demo-content {
+    height: calc(100% - 100px);
+    overflow-y: auto;
+}
+
+.tab-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.tab-header h4 {
+    color: white;
+    margin: 0;
+    font-size: 1rem;
+}
+
+/* Face recognition styles */
+.face-settings {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.reference-image-section {
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    padding: 1rem;
+}
+
+.reference-label {
+    display: block;
+    color: white;
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+}
+
+.image-upload-area {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+}
+
+.current-reference {
+    flex-shrink: 0;
+}
+
+.current-reference img {
+    width: 80px;
+    height: 80px;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.no-image {
+    width: 80px;
+    height: 80px;
+    border: 2px dashed rgba(255, 255, 255, 0.3);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 0.8rem;
+    text-align: center;
+}
+
+.upload-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.upload-controls button {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 0.4rem 0.8rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: background-color 0.3s;
+}
+
+.upload-controls button:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* Face options */
+.face-options {
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    padding: 1rem;
+}
+
+.option-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 0.75rem;
+    gap: 0.5rem;
+}
+
+.option-row:last-child {
+    margin-bottom: 0;
+}
+
+.option-row label {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    color: white;
+    font-size: 0.9rem;
+    gap: 0.5rem;
+}
+
+.option-row input[type="checkbox"] {
+    margin: 0;
+    cursor: pointer;
+    accent-color: #007bff;
+}
+
+.option-row input[type="range"] {
+    flex: 1;
+    margin: 0 0.5rem;
+    accent-color: #007bff;
+}
+
+#thresholdValue {
+    color: #007bff;
+    font-weight: 500;
+    min-width: 2rem;
+    text-align: center;
+}
+
+/* Update responsive design for new structure */
+@media (max-width: 768px) {
+    .demo-section {
+        flex: 1;
+    }
+
+    .image-upload-area {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .upload-controls {
+        width: 100%;
+    }
+
+    .demo-tabs {
+        justify-content: center;
+    }
+}

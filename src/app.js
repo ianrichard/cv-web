@@ -1,18 +1,22 @@
 import { Detector } from './components/detector.js';
 import { SimpleModelManager } from './components/simple-model-manager.js';
+import { FaceRecognition } from './components/face-recognition.js';
 import { UI } from './components/ui.js';
 
 class App {
     constructor() {
         this.detector = new Detector();
         this.modelManager = new SimpleModelManager();
+        this.faceRecognition = new FaceRecognition();
         this.ui = new UI();
         this.video = null;
         this.isDetectionRunning = false;
+        this.currentMode = 'objects'; // 'objects' or 'face'
 
         // Expose for debugging
         window.detector = this.detector;
         window.modelManager = this.modelManager;
+        window.faceRecognition = this.faceRecognition;
     }
 
     async init() {
@@ -26,11 +30,15 @@ class App {
             this.ui.updateStatus('Setting up camera...');
             this.video = await this.setupCamera();
 
-            this.ui.updateStatus('Loading COCO-SSD model...');
-            await this.loadModel();
+            this.ui.updateStatus('Loading models...');
+            await Promise.all([
+                this.loadObjectDetectionModel(),
+                this.loadFaceRecognitionModel()
+            ]);
 
             this.ui.updateStatus('Ready - Click Start Detection');
             this.setupEventListeners();
+            this.setupDemoTabs();
 
         } catch (error) {
             console.error('Initialization failed:', error);
@@ -49,29 +57,138 @@ class App {
         });
     }
 
-    async loadModel() {
+    async loadObjectDetectionModel() {
         try {
             await this.modelManager.loadModel();
-
-            // Set up the detector with a simple wrapper
-            const modelWrapper = {
-                detect: (input) => this.modelManager.detect(input),
-                type: 'object-detection'
-            };
-
-            this.detector.setModel(modelWrapper, 'COCO-SSD');
-
-            // Set up tag filters
             this.ui.setupTagFilters(this.modelManager);
 
-            // Enable toggle button
-            const toggleBtn = document.getElementById('toggleDetectionBtn');
-            toggleBtn.disabled = false;
-            toggleBtn.textContent = 'Start Detection';
+            // Initialize the detector with the object detection model immediately
+            const modelWrapper = {
+                detect: (input) => this.modelManager.detect(input)
+            };
+            this.detector.setModel(modelWrapper, 'COCO-SSD');
 
         } catch (error) {
-            console.error('Model loading failed:', error);
-            this.ui.updateStatus(`Failed to load model: ${error.message}`);
+            console.error('Object detection model loading failed:', error);
+        }
+    }
+
+    async loadFaceRecognitionModel() {
+        try {
+            await this.faceRecognition.loadModel();
+            await this.faceRecognition.loadReferenceImage();
+        } catch (error) {
+            console.error('Face recognition model loading failed:', error);
+        }
+    }
+
+    setupDemoTabs() {
+        const tabs = document.querySelectorAll('.demo-tab');
+        const contents = document.querySelectorAll('.demo-content');
+
+        tabs.forEach(tab => {
+            tab.addEventListener('click', (e) => {
+                e.stopPropagation(); // Prevent panel from closing
+
+                const targetTab = tab.dataset.tab;
+                this.switchDemoMode(targetTab);
+
+                // Update tab UI
+                tabs.forEach(t => t.classList.remove('active'));
+                contents.forEach(c => c.style.display = 'none');
+
+                tab.classList.add('active');
+                document.getElementById(`${targetTab}-content`).style.display = 'block';
+            });
+        });
+
+        // Setup face recognition controls
+        this.setupFaceControls();
+    }
+
+    setupFaceControls() {
+        const uploadBtn = document.getElementById('uploadReferenceBtn');
+        const fileInput = document.getElementById('referenceUpload');
+        const resetBtn = document.getElementById('resetReferenceBtn');
+        const thresholdSlider = document.getElementById('similarityThreshold');
+        const thresholdValue = document.getElementById('thresholdValue');
+        const showAllFaces = document.getElementById('showAllFaces');
+        const highlightMatches = document.getElementById('highlightMatches');
+
+        // Upload reference image
+        uploadBtn.addEventListener('click', () => fileInput.click());
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file && file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        this.faceRecognition.loadReferenceImage(img);
+                        document.getElementById('referencePreview').src = e.target.result;
+                        document.getElementById('referencePreview').style.display = 'block';
+                        document.querySelector('.no-image').style.display = 'none';
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Reset to default
+        resetBtn.addEventListener('click', () => {
+            this.faceRecognition.loadReferenceImage();
+            document.getElementById('referencePreview').src = '/images/face.jpg';
+            document.getElementById('referencePreview').style.display = 'block';
+            document.querySelector('.no-image').style.display = 'none';
+        });
+
+        // Similarity threshold
+        thresholdSlider.addEventListener('input', (e) => {
+            const value = parseFloat(e.target.value);
+            thresholdValue.textContent = value.toFixed(1);
+            this.faceRecognition.updateSettings({ similarityThreshold: value });
+        });
+
+        // Checkboxes
+        showAllFaces.addEventListener('change', (e) => {
+            this.faceRecognition.updateSettings({ showAllFaces: e.target.checked });
+        });
+
+        highlightMatches.addEventListener('change', (e) => {
+            this.faceRecognition.updateSettings({ highlightMatches: e.target.checked });
+        });
+    }
+
+    switchDemoMode(mode) {
+        const wasRunning = this.isDetectionRunning;
+
+        if (wasRunning) {
+            this.stopDetection();
+        }
+
+        this.currentMode = mode;
+        document.getElementById('currentMode').textContent = mode === 'objects' ? 'Objects' : 'Face';
+
+        // Update detector model
+        if (mode === 'objects') {
+            const modelWrapper = {
+                detect: (input) => this.modelManager.detect(input)
+            };
+            this.detector.setModel(modelWrapper, 'COCO-SSD');
+        } else {
+            const modelWrapper = {
+                detect: (input) => this.faceRecognition.detect(input)
+            };
+            this.detector.setModel(modelWrapper, 'BlazeFace');
+        }
+
+        // Reset smoothing when switching modes
+        this.detector.resetSmoothing();
+
+        if (wasRunning) {
+            setTimeout(() => this.startDetection(), 100);
         }
     }
 
@@ -95,6 +212,12 @@ class App {
             this.modelManager.disableAllTags();
             this.ui.updateTagFilters(this.modelManager);
         });
+
+        // Enable button once models are loaded - ensure we have a model set
+        if (this.detector.model) {
+            toggleBtn.disabled = false;
+            toggleBtn.textContent = 'Start Detection';
+        }
     }
 
     startDetection() {
@@ -119,7 +242,7 @@ class App {
         }
 
         this.detector.startDetection(this.video);
-        this.ui.updateStatus('Detection running...');
+        this.ui.updateStatus(`${this.currentMode === 'objects' ? 'Object' : 'Face'} detection running...`);
     }
 
     stopDetection() {

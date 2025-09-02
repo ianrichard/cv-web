@@ -254,6 +254,7 @@ export class Detector {
             const isTracked = prediction.isTracked;
             const isFading = prediction.isFading;
             const isNew = prediction.isNew;
+            const isMatch = prediction.isMatch;
 
             // Scale coordinates to canvas size
             const scaledX = (x * scaleX) + offsetX;
@@ -266,7 +267,7 @@ export class Detector {
             if (isYoloE) {
                 color = isPromptGenerated ? '#FF00FF' : '#00FFFF';
             } else if (isFaceRecognition) {
-                color = prediction.class === 'You' ? '#FF0000' : '#FFA500';
+                color = isMatch ? '#FF0000' : '#FFA500'; // Red for matches, orange for other faces
             } else {
                 switch (prediction.class) {
                     case 'person': color = '#FF6B6B'; break;
@@ -312,7 +313,11 @@ export class Detector {
                 cleanClassName = cleanClassName.replace(' (YOLOE Enhanced)', '').replace(' (YOLOE)', '').replace(' (YOLOE Prompt)', '');
             }
 
-            const label = `${cleanClassName}: ${(prediction.score * 100).toFixed(0)}%`;
+            // Add similarity info for face matches
+            let label = `${cleanClassName}: ${(prediction.score * 100).toFixed(0)}%`;
+            if (isFaceRecognition && prediction.similarity !== undefined) {
+                label += ` (${(prediction.similarity * 100).toFixed(0)}% match)`;
+            }
 
             // Set font size properly scaled for high-DPI
             const baseFontSize = 14;

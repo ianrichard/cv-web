@@ -10,6 +10,8 @@
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@3.20.0/dist/tf-backend-webgl.min.js"></script>
     <!-- COCO-SSD for object detection -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.2/dist/coco-ssd.min.js"></script>
+    <!-- BlazeFace for face detection -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface@0.0.7/dist/blazeface.min.js"></script>
     <link rel="stylesheet" href="src/styles/main.css">
 </head>
 <body>
@@ -41,6 +43,10 @@
                 </div>
                 <div class="metrics-table">
                     <div class="metric-row">
+                        <span class="metric-label">Mode:</span>
+                        <span id="currentMode">Objects</span>
+                    </div>
+                    <div class="metric-row">
                         <span class="metric-label">Status:</span>
                         <span id="detectionStatus">Stopped</span>
                     </div>
@@ -63,18 +69,75 @@
                 </div>
             </div>
 
-            <!-- Right Column: Filters -->
-            <div class="filters-section">
-                <div class="filters-header">
-                    <h3>Object Filters</h3>
-                    <div class="filter-actions">
-                        <button id="selectAllBtn">Select All</button>
-                        <button id="selectNoneBtn">Clear All</button>
+            <!-- Right Column: Demo Settings -->
+            <div class="demo-section">
+                <div class="demo-header">
+                    <h3>Demo Settings</h3>
+                </div>
+
+                <!-- Demo Mode Tabs -->
+                <div class="demo-tabs">
+                    <button class="demo-tab active" data-tab="objects">Objects</button>
+                    <button class="demo-tab" data-tab="face">Face</button>
+                </div>
+
+                <!-- Objects Tab Content -->
+                <div class="demo-content" id="objects-content">
+                    <div class="tab-header">
+                        <h4>Object Detection Filters</h4>
+                        <div class="filter-actions">
+                            <button id="selectAllBtn">Select All</button>
+                            <button id="selectNoneBtn">Clear All</button>
+                        </div>
+                    </div>
+                    <div class="filters-content">
+                        <div class="tag-grid" id="tagGrid">
+                            <!-- Tags will be populated dynamically -->
+                        </div>
                     </div>
                 </div>
-                <div class="filters-content">
-                    <div class="tag-grid" id="tagGrid">
-                        <!-- Tags will be populated dynamically -->
+
+                <!-- Face Tab Content -->
+                <div class="demo-content" id="face-content" style="display: none;">
+                    <div class="tab-header">
+                        <h4>Face Recognition</h4>
+                    </div>
+                    <div class="face-settings">
+                        <div class="reference-image-section">
+                            <label class="reference-label">Reference Image:</label>
+                            <div class="image-upload-area">
+                                <div class="current-reference" id="currentReference">
+                                    <img id="referencePreview" src="/images/face.jpg" alt="Reference face"
+                                         onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                    <div class="no-image" style="display: none;">No reference image</div>
+                                </div>
+                                <div class="upload-controls">
+                                    <input type="file" id="referenceUpload" accept="image/*" style="display: none;">
+                                    <button id="uploadReferenceBtn">Upload New</button>
+                                    <button id="resetReferenceBtn">Reset to Default</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="face-options">
+                            <div class="option-row">
+                                <label>
+                                    <input type="checkbox" id="showAllFaces" checked>
+                                    <span>Show all detected faces</span>
+                                </label>
+                            </div>
+                            <div class="option-row">
+                                <label>
+                                    <input type="checkbox" id="highlightMatches" checked>
+                                    <span>Highlight reference matches</span>
+                                </label>
+                            </div>
+                            <div class="option-row">
+                                <label>Similarity threshold:</label>
+                                <input type="range" id="similarityThreshold" min="0.3" max="0.9" step="0.1" value="0.7">
+                                <span id="thresholdValue">0.7</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
