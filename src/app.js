@@ -1,13 +1,14 @@
 import { Detector } from './components/detector.js';
-import { UnifiedModelManager } from './components/unified-model-manager.js';
+import { SimpleModelManager } from './components/simple-model-manager.js';
 import { UI } from './components/ui.js';
 
 class App {
     constructor() {
         this.detector = new Detector();
-        this.modelManager = new UnifiedModelManager();
+        this.modelManager = new SimpleModelManager();
         this.ui = new UI();
         this.video = null;
+        this.isDetectionRunning = false;
 
         // Expose for debugging
         window.detector = this.detector;
@@ -25,7 +26,10 @@ class App {
             this.ui.updateStatus('Setting up camera...');
             this.video = await this.setupCamera();
 
-            this.ui.updateStatus('Select and load a model to begin');
+            this.ui.updateStatus('Loading COCO-SSD model...');
+            await this.loadModel();
+
+            this.ui.updateStatus('Ready - Click Start Detection');
             this.setupEventListeners();
 
         } catch (error) {
@@ -37,7 +41,7 @@ class App {
     async setupCamera() {
         const video = document.getElementById('webcam');
         const stream = await navigator.mediaDevices.getUserMedia({
-            video: { width: 640, height: 480 }
+            video: { width: 1280, height: 720 }
         });
         video.srcObject = stream;
         return new Promise((resolve) => {
@@ -45,20 +49,25 @@ class App {
         });
     }
 
-    async loadSelectedModel() {
-        const modelSelect = document.getElementById('modelSelect');
-        const selectedModel = modelSelect.value;
-
+    async loadModel() {
         try {
-            this.ui.updateStatus(`Loading ${selectedModel}...`);
+            await this.modelManager.loadModel();
 
-            const model = await this.modelManager.loadModel(selectedModel);
-            this.detector.setModel(model, this.modelManager.getModelInfo());
+            // Set up the detector with a simple wrapper
+            const modelWrapper = {
+                detect: (input) => this.modelManager.detect(input),
+                type: 'object-detection'
+            };
 
-            // Enable start button
-            document.getElementById('startBtn').disabled = false;
+            this.detector.setModel(modelWrapper, 'COCO-SSD');
 
-            this.ui.updateStatus('Model loaded! Ready to start detection.');
+            // Set up tag filters
+            this.ui.setupTagFilters(this.modelManager);
+
+            // Enable toggle button
+            const toggleBtn = document.getElementById('toggleDetectionBtn');
+            toggleBtn.disabled = false;
+            toggleBtn.textContent = 'Start Detection';
 
         } catch (error) {
             console.error('Model loading failed:', error);
@@ -67,68 +76,104 @@ class App {
     }
 
     setupEventListeners() {
-        document.getElementById('loadModelBtn').addEventListener('click', () => {
-            this.loadSelectedModel();
-        });
+        const toggleBtn = document.getElementById('toggleDetectionBtn');
 
-        // YOLOE prompt handling - these elements might not exist initially
-        const updatePromptBtn = document.getElementById('updatePromptBtn');
-        const promptInput = document.getElementById('promptInput');
-
-        if (updatePromptBtn) {
-            updatePromptBtn.addEventListener('click', () => {
-                const input = document.getElementById('promptInput');
-                if (input && input.value.trim()) {
-                    this.modelManager.updateYoloePrompt(input.value.trim());
-                }
-            });
-        }
-
-        if (promptInput) {
-            promptInput.addEventListener('keypress', (event) => {
-                if (event.key === 'Enter') {
-                    const input = event.target;
-                    if (input.value.trim()) {
-                        this.modelManager.updateYoloePrompt(input.value.trim());
-                    }
-                }
-            });
-        }
-
-        // Use event delegation for dynamically shown elements
-        document.addEventListener('click', (event) => {
-            if (event.target.id === 'updatePromptBtn') {
-                const input = document.getElementById('promptInput');
-                if (input && input.value.trim()) {
-                    this.modelManager.updateYoloePrompt(input.value.trim());
-                }
+        toggleBtn.addEventListener('click', () => {
+            if (this.isDetectionRunning) {
+                this.stopDetection();
+            } else {
+                this.startDetection();
             }
         });
 
-        document.addEventListener('keypress', (event) => {
-            if (event.target.id === 'promptInput' && event.key === 'Enter') {
-                const input = event.target;
-                if (input.value.trim()) {
-                    this.modelManager.updateYoloePrompt(input.value.trim());
-                }
-            }
+        document.getElementById('selectAllBtn').addEventListener('click', () => {
+            this.modelManager.enableAllTags();
+            this.ui.updateTagFilters(this.modelManager);
         });
 
-        document.getElementById('startBtn').addEventListener('click', () => {
-            this.detector.startDetection(this.video);
-            this.ui.updateStatus('Detection running...');
-        });
-
-        document.getElementById('stopBtn').addEventListener('click', () => {
-            this.detector.stopDetection();
-            this.ui.updateStatus('Detection stopped');
-        });
-
-        document.getElementById('performanceBtn').addEventListener('click', () => {
-            this.detector.togglePerformance();
+        document.getElementById('selectNoneBtn').addEventListener('click', () => {
+            this.modelManager.disableAllTags();
+            this.ui.updateTagFilters(this.modelManager);
         });
     }
+
+    startDetection() {
+        this.isDetectionRunning = true;
+        const toggleBtn = document.getElementById('toggleDetectionBtn');
+        const statusSpan = document.getElementById('detectionStatus');
+
+        toggleBtn.textContent = 'Stop Detection';
+        toggleBtn.classList.add('running');
+        statusSpan.textContent = 'Running';
+        statusSpan.classList.remove('stopped');
+        statusSpan.classList.add('running');
+
+        // Close the panel when starting detection
+        const bottomPanel = document.getElementById('bottomPanel');
+        const mainContainer = document.querySelector('.main-container');
+
+        if (bottomPanel && mainContainer) {
+            bottomPanel.classList.remove('expanded');
+            bottomPanel.classList.add('collapsed');
+            mainContainer.classList.remove('panel-open');
+        }
+
+        this.detector.startDetection(this.video);
+        this.ui.updateStatus('Detection running...');
+    }
+
+    stopDetection() {
+        this.isDetectionRunning = false;
+        const toggleBtn = document.getElementById('toggleDetectionBtn');
+        const statusSpan = document.getElementById('detectionStatus');
+
+        toggleBtn.textContent = 'Start Detection';
+        toggleBtn.classList.remove('running');
+        statusSpan.textContent = 'Stopped';
+        statusSpan.classList.remove('running');
+        statusSpan.classList.add('stopped');
+
+        this.detector.stopDetection();
+        this.ui.updateStatus('Detection stopped');
+    }
 }
+
+// FAB Toggle Functionality
+document.addEventListener('DOMContentLoaded', function() {
+    const fabToggle = document.getElementById('fabToggle');
+    const bottomPanel = document.getElementById('bottomPanel');
+    const mainContainer = document.querySelector('.main-container');
+
+    fabToggle.addEventListener('click', function() {
+        const isExpanded = bottomPanel.classList.contains('expanded');
+
+        if (isExpanded) {
+            // Close panel
+            bottomPanel.classList.remove('expanded');
+            bottomPanel.classList.add('collapsed');
+            mainContainer.classList.remove('panel-open');
+        } else {
+            // Open panel
+            bottomPanel.classList.remove('collapsed');
+            bottomPanel.classList.add('expanded');
+            mainContainer.classList.add('panel-open');
+        }
+    });
+
+    // Close panel when clicking outside (only when expanded)
+    document.addEventListener('click', function(event) {
+        const isExpanded = bottomPanel.classList.contains('expanded');
+
+        if (isExpanded &&
+            !bottomPanel.contains(event.target) &&
+            !fabToggle.contains(event.target)) {
+
+            bottomPanel.classList.remove('expanded');
+            bottomPanel.classList.add('collapsed');
+            mainContainer.classList.remove('panel-open');
+        }
+    });
+});
 
 // Start the app when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
