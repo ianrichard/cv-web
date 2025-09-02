@@ -1,3 +1,5 @@
+import { DetectionSmoother } from './detection-smoother.js';
+
 export class Detector {
     constructor() {
         this.model = null;
@@ -6,6 +8,11 @@ export class Detector {
         this.ctx = this.canvas.getContext('2d');
         this.isDetecting = false;
         this.animationFrame = null;
+
+        // Canvas sizing and DPI handling
+        this.devicePixelRatio = window.devicePixelRatio || 1;
+        this.canvasWidth = 0;
+        this.canvasHeight = 0;
 
         // Performance monitoring
         this.frameCount = 0;
@@ -30,6 +37,60 @@ export class Detector {
         // Performance UI elements
         this.performanceVisible = false;
         this.objectCount = 0;
+
+        // Initialize smoothing system with very aggressive smoothing
+        this.smoother = new DetectionSmoother({
+            smoothingFactor: 0.05,       // Much lower for very heavy smoothing
+            maxDistance: 150,            // Allow wider matching
+            maxFramesWithoutDetection: 30, // Keep objects much longer
+            minUpdateThreshold: 3,       // Lower threshold
+            updateInterval: 30           // Only update every 30 frames (~1 second)
+        });
+
+        // Setup resize observer for responsive canvas
+        this.setupResizeObserver();
+    }
+
+    setupResizeObserver() {
+        if (typeof ResizeObserver !== 'undefined') {
+            this.resizeObserver = new ResizeObserver(() => {
+                this.updateCanvasSize();
+            });
+            this.resizeObserver.observe(this.canvas.parentElement);
+        } else {
+            // Fallback for older browsers
+            window.addEventListener('resize', () => this.updateCanvasSize());
+        }
+    }
+
+    updateCanvasSize() {
+        const container = this.canvas.parentElement;
+        const rect = container.getBoundingClientRect();
+
+        // Set CSS display size
+        this.canvasWidth = rect.width;
+        this.canvasHeight = rect.height;
+
+        // Set actual canvas buffer size for high-DPI
+        const scaledWidth = Math.floor(this.canvasWidth * this.devicePixelRatio);
+        const scaledHeight = Math.floor(this.canvasHeight * this.devicePixelRatio);
+
+        if (this.canvas.width !== scaledWidth || this.canvas.height !== scaledHeight) {
+            this.canvas.width = scaledWidth;
+            this.canvas.height = scaledHeight;
+
+            // Set CSS size to maintain display dimensions
+            this.canvas.style.width = this.canvasWidth + 'px';
+            this.canvas.style.height = this.canvasHeight + 'px';
+
+            // Scale context to match pixel ratio
+            this.ctx.scale(this.devicePixelRatio, this.devicePixelRatio);
+
+            // Optimize text rendering
+            this.ctx.textBaseline = 'top';
+            this.ctx.imageSmoothingEnabled = true;
+            this.ctx.imageSmoothingQuality = 'high';
+        }
     }
 
     detectPlatform() {
@@ -59,8 +120,7 @@ export class Detector {
 
     async startDetection(videoElement) {
         this.isDetecting = true;
-        this.canvas.width = videoElement.videoWidth;
-        this.canvas.height = videoElement.videoHeight;
+        this.updateCanvasSize(); // Ensure proper sizing before starting
         this.detectLoop(videoElement);
     }
 
@@ -82,17 +142,21 @@ export class Detector {
         this.lastFrameTime = currentTime;
 
         try {
-            this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+            // Clear with proper scaling
+            this.ctx.clearRect(0, 0, this.canvasWidth, this.canvasHeight);
 
             const startTime = performance.now();
-            const predictions = await this.model.detect(videoElement);
+            const rawPredictions = await this.model.detect(videoElement);
             const inferenceTime = performance.now() - startTime;
 
-            const filteredPredictions = predictions.filter(p => p.score >= this.confidenceThreshold);
-            const smoothedPredictions = this.trackAndSmoothPredictions(filteredPredictions);
+            // Filter by confidence threshold first
+            const filteredPredictions = rawPredictions.filter(p => p.score >= this.confidenceThreshold);
+
+            // Apply smoothing to reduce jumpiness - this is the key step
+            const smoothedPredictions = this.smoother.smoothDetections(filteredPredictions);
 
             this.objectCount = smoothedPredictions.length;
-            this.drawPredictions(smoothedPredictions);
+            this.drawPredictions(smoothedPredictions, videoElement);
             this.updatePerformanceStats(currentTime, inferenceTime);
 
         } catch (error) {
@@ -127,130 +191,6 @@ export class Detector {
         }
     }
 
-    trackAndSmoothPredictions(predictions) {
-        const smoothedPredictions = [];
-        const usedPredictions = new Set();
-
-        // Update existing tracked objects
-        for (const [id, trackedObj] of this.trackedObjects) {
-            let bestMatch = null;
-            let bestDistance = Infinity;
-
-            predictions.forEach((pred, index) => {
-                if (usedPredictions.has(index)) return;
-
-                // More flexible class matching to handle variations
-                const classMatch = this.classesMatch(pred.class, trackedObj.class);
-                if (!classMatch) return;
-
-                const distance = this.calculateDistance(trackedObj.bbox, pred.bbox);
-                if (distance < this.maxTrackingDistance && distance < bestDistance) {
-                    bestMatch = { prediction: pred, index };
-                    bestDistance = distance;
-                }
-            });
-
-            if (bestMatch) {
-                const smoothedBbox = this.smoothBoundingBox(trackedObj.bbox, bestMatch.prediction.bbox);
-                trackedObj.bbox = smoothedBbox;
-                trackedObj.score = bestMatch.prediction.score;
-                // Keep the original class to maintain consistency
-                trackedObj.class = trackedObj.class; // Don't update class to prevent flashing
-                trackedObj.framesSinceLastDetection = 0;
-
-                smoothedPredictions.push({
-                    ...bestMatch.prediction,
-                    class: trackedObj.class, // Use consistent class name
-                    bbox: smoothedBbox
-                });
-                usedPredictions.add(bestMatch.index);
-            } else {
-                trackedObj.framesSinceLastDetection++;
-                if (trackedObj.framesSinceLastDetection < this.maxFramesWithoutDetection) {
-                    smoothedPredictions.push({
-                        class: trackedObj.class,
-                        score: trackedObj.score * 0.95,
-                        bbox: trackedObj.bbox,
-                        isFaceRecognition: trackedObj.isFaceRecognition,
-                        isYoloE: trackedObj.isYoloE
-                    });
-                }
-            }
-        }
-
-        // Clean up old objects
-        for (const [id, trackedObj] of this.trackedObjects) {
-            if (trackedObj.framesSinceLastDetection >= this.maxFramesWithoutDetection) {
-                this.trackedObjects.delete(id);
-            }
-        }
-
-        // Add new detections
-        predictions.forEach((pred, index) => {
-            if (usedPredictions.has(index)) return;
-
-            const newId = this.nextObjectId++;
-            this.trackedObjects.set(newId, {
-                id: newId,
-                class: pred.class,
-                bbox: pred.bbox,
-                score: pred.score,
-                isFaceRecognition: pred.isFaceRecognition || false,
-                isYoloE: pred.isYoloE || false,
-                framesSinceLastDetection: 0
-            });
-            smoothedPredictions.push(pred);
-        });
-
-        return smoothedPredictions;
-    }
-
-    classesMatch(class1, class2) {
-        // Normalize class names for comparison
-        const normalize = (className) => className.toLowerCase().trim();
-        const c1 = normalize(class1);
-        const c2 = normalize(class2);
-
-        // Direct match
-        if (c1 === c2) return true;
-
-        // Handle common variations
-        const variations = {
-            'person': ['face', 'human'],
-            'face': ['person', 'human'],
-            'car': ['vehicle', 'automobile'],
-            'bicycle': ['bike'],
-            'motorcycle': ['motorbike']
-        };
-
-        // Check if either class is a variation of the other
-        if (variations[c1] && variations[c1].includes(c2)) return true;
-        if (variations[c2] && variations[c2].includes(c1)) return true;
-
-        return false;
-    }
-
-    calculateDistance(bbox1, bbox2) {
-        const [x1, y1, w1, h1] = bbox1;
-        const [x2, y2, w2, h2] = bbox2;
-        const cx1 = x1 + w1 / 2, cy1 = y1 + h1 / 2;
-        const cx2 = x2 + w2 / 2, cy2 = y2 + h2 / 2;
-        return Math.sqrt((cx1 - cx2) ** 2 + (cy1 - cy2) ** 2);
-    }
-
-    smoothBoundingBox(oldBbox, newBbox) {
-        const [ox, oy, ow, oh] = oldBbox;
-        const [nx, ny, nw, nh] = newBbox;
-        const factor = this.smoothingFactor;
-
-        return [
-            ox * factor + nx * (1 - factor),
-            oy * factor + ny * (1 - factor),
-            ow * factor + nw * (1 - factor),
-            oh * factor + nh * (1 - factor)
-        ];
-    }
-
     updatePerformanceStats(currentTime, inferenceTime) {
         this.frameCount++;
         if (currentTime - this.lastTime >= 1000) {
@@ -283,17 +223,48 @@ export class Detector {
         }
     }
 
-    drawPredictions(predictions) {
+    drawPredictions(predictions, videoElement) {
+        // Calculate scaling factors for responsive drawing
+        const videoRect = videoElement.getBoundingClientRect();
+        const containerRect = this.canvas.parentElement.getBoundingClientRect();
+
+        // Account for object-fit: cover scaling
+        const videoAspect = videoElement.videoWidth / videoElement.videoHeight;
+        const containerAspect = this.canvasWidth / this.canvasHeight;
+
+        let scaleX, scaleY, offsetX = 0, offsetY = 0;
+
+        if (videoAspect > containerAspect) {
+            // Video is wider than container - fit to height, crop sides
+            scaleY = this.canvasHeight / videoElement.videoHeight;
+            scaleX = scaleY;
+            offsetX = (this.canvasWidth - (videoElement.videoWidth * scaleX)) / 2;
+        } else {
+            // Video is taller than container - fit to width, crop top/bottom
+            scaleX = this.canvasWidth / videoElement.videoWidth;
+            scaleY = scaleX;
+            offsetY = (this.canvasHeight - (videoElement.videoHeight * scaleY)) / 2;
+        }
+
         predictions.forEach(prediction => {
             const [x, y, width, height] = prediction.bbox;
             const isFaceRecognition = prediction.isFaceRecognition;
             const isYoloE = prediction.isYoloE;
             const isPromptGenerated = prediction.isPromptGenerated;
+            const isTracked = prediction.isTracked;
+            const isFading = prediction.isFading;
+            const isNew = prediction.isNew;
 
-            // Enhanced color coding by class and model type
+            // Scale coordinates to canvas size
+            const scaledX = (x * scaleX) + offsetX;
+            const scaledY = (y * scaleY) + offsetY;
+            const scaledWidth = width * scaleX;
+            const scaledHeight = height * scaleY;
+
+            // Enhanced color coding
             let color = '#00FF00';
             if (isYoloE) {
-                color = isPromptGenerated ? '#FF00FF' : '#00FFFF'; // Magenta for prompt-generated, Cyan for YOLOE
+                color = isPromptGenerated ? '#FF00FF' : '#00FFFF';
             } else if (isFaceRecognition) {
                 color = prediction.class === 'You' ? '#FF0000' : '#FFA500';
             } else {
@@ -311,40 +282,71 @@ export class Detector {
                 }
             }
 
-            // Draw bounding box with special styling for YOLOE
-            this.ctx.strokeStyle = color;
-            this.ctx.lineWidth = isYoloE ? 4 : (isFaceRecognition ? 3 : 2);
+            // Adjust opacity based on tracking state to reduce flickering
+            let alpha = 'FF';
+            let lineWidth = 2;
+
+            if (isNew) {
+                alpha = 'AA'; // Slightly transparent for new objects
+            } else if (isFading) {
+                alpha = '60'; // More transparent for fading objects
+                lineWidth = 1.5;
+            } else if (isTracked) {
+                alpha = '90'; // Slightly transparent for tracked objects
+                lineWidth = 1.8;
+            }
+
+            // Draw bounding box
+            this.ctx.strokeStyle = color + alpha;
+            this.ctx.lineWidth = isYoloE ? 4 : (isFaceRecognition ? 3 : lineWidth);
             if (isPromptGenerated) {
-                this.ctx.setLineDash([10, 5]); // Dashed line for prompt-generated
+                this.ctx.setLineDash([10, 5]);
             } else {
                 this.ctx.setLineDash([]);
             }
-            this.ctx.strokeRect(x, y, width, height);
+            this.ctx.strokeRect(scaledX, scaledY, scaledWidth, scaledHeight);
 
-            // Draw confidence bar
-            const confidenceWidth = width * prediction.score;
-            this.ctx.fillStyle = color + '40';
-            this.ctx.fillRect(x, y - 8, confidenceWidth, 4);
-
-            // Standardize label format - remove model-specific suffixes for consistent display
+            // Clean label format
             let cleanClassName = prediction.class;
             if (isYoloE) {
-                // Remove YOLOE suffix for cleaner display, but keep the visual distinction
                 cleanClassName = cleanClassName.replace(' (YOLOE Enhanced)', '').replace(' (YOLOE)', '').replace(' (YOLOE Prompt)', '');
             }
 
             const label = `${cleanClassName}: ${(prediction.score * 100).toFixed(0)}%`;
-            this.ctx.fillStyle = color;
-            this.ctx.font = 'bold 14px Arial'; // Standardize font size
 
-            const textWidth = this.ctx.measureText(label).width;
-            this.ctx.fillRect(x, y - 30, textWidth + 12, 22);
+            // Set font size properly scaled for high-DPI
+            const baseFontSize = 14;
+            this.ctx.font = `bold ${baseFontSize}px Arial`;
+            this.ctx.textAlign = 'left';
+            this.ctx.textBaseline = 'top';
 
+            const textMetrics = this.ctx.measureText(label);
+            const textWidth = textMetrics.width;
+            const textHeight = baseFontSize * 1.2;
+
+            // Draw background for text with same alpha
+            this.ctx.fillStyle = color + alpha;
+            this.ctx.fillRect(scaledX, scaledY - textHeight - 8, textWidth + 12, textHeight + 4);
+
+            // Draw text
             this.ctx.fillStyle = '#000000';
-            this.ctx.fillText(label, x + 6, y - 12);
+            this.ctx.fillText(label, scaledX + 6, scaledY - textHeight - 4);
 
-            // Reset line dash for next prediction
+            // Reset line dash
             this.ctx.setLineDash([]);
         });
+    }
+
+    // Add method to adjust smoothing settings
+    adjustSmoothingSettings(settings) {
+        this.smoother = new DetectionSmoother({
+            ...this.smoother,
+            ...settings
+        });
+    }
+
+    // Add method to reset smoothing (useful when changing models)
+    resetSmoothing() {
+        this.smoother.reset();
     }
 }

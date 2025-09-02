@@ -57,7 +57,7 @@ body {
     border-radius: 0;
 }
 
-/* Canvas - overlay on video */
+/* Canvas - overlay on video - responsive */
 #output {
     position: absolute;
     top: 0;
