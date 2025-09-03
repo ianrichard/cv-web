@@ -204,7 +204,7 @@ export class Detector {
             // Update UI elements
             this.updatePerformanceUI(inferenceTime);
 
-            console.log(`FPS: ${this.fps}, Inference: ${inferenceTime.toFixed(1)}ms, Objects: ${this.objectCount}`);
+            console.log(`FPS ${this.fps}, Inference: ${inferenceTime.toFixed(1)}ms, Objects: ${this.objectCount}`);
         }
     }
 

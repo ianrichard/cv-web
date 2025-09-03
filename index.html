@@ -36,45 +36,28 @@
 
             <!-- Left Column: Metrics -->
             <div class="metrics-section">
-                <h3>Metrics</h3>
                 <div class="metrics-controls">
                     <span id="statusText">Initializing...</span>
-                    <button id="toggleDetectionBtn" disabled>Start Detection</button>
+                    <button id="toggleDetectionBtn" disabled>Start</button>
                 </div>
                 <div class="metrics-table">
                     <div class="metric-row">
-                        <span class="metric-label">Mode:</span>
-                        <span id="currentMode">Objects</span>
-                    </div>
-                    <div class="metric-row">
-                        <span class="metric-label">Status:</span>
-                        <span id="detectionStatus">Stopped</span>
-                    </div>
-                    <div class="metric-row">
-                        <span class="metric-label">FPS:</span>
+                        <span class="metric-label">FPS</span>
                         <span id="fpsCounter">0</span>
                     </div>
                     <div class="metric-row">
-                        <span class="metric-label">Inference:</span>
+                        <span class="metric-label">Inference Time</span>
                         <span id="inferenceTime">0ms</span>
                     </div>
                     <div class="metric-row">
-                        <span class="metric-label">Objects:</span>
+                        <span class="metric-label">Objects Detected</span>
                         <span id="objectCount">0</span>
-                    </div>
-                    <div class="metric-row">
-                        <span class="metric-label">Filters:</span>
-                        <span id="activeFilters">All (80)</span>
                     </div>
                 </div>
             </div>
 
             <!-- Right Column: Demo Settings -->
             <div class="demo-section">
-                <div class="demo-header">
-                    <h3>Demo Settings</h3>
-                </div>
-
                 <!-- Demo Mode Tabs -->
                 <div class="demo-tabs">
                     <button class="demo-tab active" data-tab="objects">Objects</button>
@@ -83,28 +66,22 @@
 
                 <!-- Objects Tab Content -->
                 <div class="demo-content" id="objects-content">
-                    <div class="tab-header">
-                        <h4>Object Detection Filters</h4>
-                        <div class="filter-actions">
-                            <button id="selectAllBtn">Select All</button>
-                            <button id="selectNoneBtn">Clear All</button>
-                        </div>
-                    </div>
                     <div class="filters-content">
                         <div class="tag-grid" id="tagGrid">
                             <!-- Tags will be populated dynamically -->
                         </div>
                     </div>
+                    <div class="filter-actions" style="display: none;">
+                        <button id="selectAllBtn">Select All</button>
+                        <button id="selectNoneBtn">Clear All</button>
+                    </div>
                 </div>
 
                 <!-- Face Tab Content -->
                 <div class="demo-content" id="face-content" style="display: none;">
-                    <div class="tab-header">
-                        <h4>Face Recognition</h4>
-                    </div>
                     <div class="face-settings">
                         <div class="reference-image-section">
-                            <label class="reference-label">Reference Image:</label>
+                            <label class="reference-label">Reference Image</label>
                             <div class="image-upload-area">
                                 <div class="current-reference" id="currentReference">
                                     <img id="referencePreview" src="/images/face.jpg" alt="Reference face"
@@ -121,13 +98,12 @@
 
                         <div class="face-options">
                             <div class="option-row">
-                                <label>Match sensitivity:</label>
-                                <input type="range" id="similarityThreshold" min="0.1" max="0.8" step="0.05" value="0.5">
-                                <span id="thresholdValue">0.50</span>
+                                <label>Match Sensitivity</label>
+                                <div class="input-wrapper">
+                                    <input type="range" id="similarityThreshold" min="0.1" max="0.8" step="0.05" value="0.8">
+                                    <span id="thresholdValue">0.80</span>
+                                </div>
                             </div>
-                            <p class="demo-description">
-                                A red box will appear when your face matches the reference image above.
-                            </p>
                         </div>
                     </div>
                 </div>

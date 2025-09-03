@@ -11,7 +11,7 @@ export class FaceDetector {
 
         // Face recognition using face-api.js
         this.referenceDescriptor = null;
-        this.similarityThreshold = 0.6; // face-api.js uses distance (lower = more similar)
+        this.similarityThreshold = 0.8; // face-api.js uses distance (lower = more similar)
 
         // Single face tracking
         this.currentFace = null;

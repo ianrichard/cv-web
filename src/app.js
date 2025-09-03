@@ -21,22 +21,22 @@ class App {
 
     async init() {
         try {
-            this.ui.updateStatus('Initializing TensorFlow.js...');
+            this.ui.updateStatus('Initializing TensorFlow.js…');
 
             // Ensure TensorFlow.js is ready
             await tf.ready();
             console.log('TensorFlow.js backend:', tf.getBackend());
 
-            this.ui.updateStatus('Setting up camera...');
+            this.ui.updateStatus('Setting up camera…');
             this.video = await this.setupCamera();
 
-            this.ui.updateStatus('Loading models...');
+            this.ui.updateStatus('Loading models…');
             await Promise.all([
                 this.loadObjectDetectionModel(),
                 this.loadFaceDetectionModel()
             ]);
 
-            this.ui.updateStatus('Ready - Click Start Detection');
+            this.ui.updateStatus('Model ready');
             this.setupEventListeners();
             this.setupDemoTabs();
 
@@ -61,6 +61,12 @@ class App {
         try {
             await this.modelManager.loadModel();
             this.ui.setupTagFilters(this.modelManager);
+
+            // Show the filter actions only after the tags are populated
+            const filterActions = document.querySelector('.filter-actions');
+            if (filterActions) {
+                filterActions.style.display = 'flex';
+            }
 
             // Initialize the detector with the object detection model immediately
             const modelWrapper = {
@@ -124,7 +130,7 @@ class App {
                 reader.onload = async (e) => {
                     const img = new Image();
                     img.onload = async () => {
-                        console.log('Uploading new reference image...');
+                        console.log('Uploading image…');
                         await this.faceDetector.loadReferenceImage(img);
                         document.getElementById('referencePreview').src = e.target.result;
                         document.getElementById('referencePreview').style.display = 'block';
@@ -139,7 +145,7 @@ class App {
 
         // Reset to default
         resetBtn.addEventListener('click', async () => {
-            console.log('Resetting to default reference image...');
+            console.log('Resetting to default…');
             await this.faceDetector.loadReferenceImage();
             document.getElementById('referencePreview').src = '/images/face.jpg';
             document.getElementById('referencePreview').style.display = 'block';
@@ -154,7 +160,7 @@ class App {
             this.faceDetector.updateSettings({ similarityThreshold: value });
         });
 
-        thresholdValue.textContent = '0.50';
+        thresholdValue.textContent = '0.80';
     }
 
     switchDemoMode(mode) {
@@ -165,7 +171,6 @@ class App {
         }
 
         this.currentMode = mode;
-        document.getElementById('currentMode').textContent = mode === 'objects' ? 'Objects' : 'Face';
 
         // DO NOT set up any model wrappers for face mode - let it run independently
         if (mode === 'objects') {
@@ -188,6 +193,15 @@ class App {
             if (this.isDetectionRunning) {
                 this.stopDetection();
             } else {
+                // Close the panel only when starting detection from the button
+                const bottomPanel = document.getElementById('bottomPanel');
+                const mainContainer = document.querySelector('.main-container');
+
+                if (bottomPanel && mainContainer) {
+                    bottomPanel.classList.remove('expanded');
+                    bottomPanel.classList.add('collapsed');
+                    mainContainer.classList.remove('panel-open');
+                }
                 this.startDetection();
             }
         });
@@ -205,30 +219,19 @@ class App {
         // Enable button once models are loaded - ensure we have a model set
         if (this.detector.model) {
             toggleBtn.disabled = false;
-            toggleBtn.textContent = 'Start Detection';
+            toggleBtn.textContent = 'Start';
         }
     }
 
     startDetection() {
         this.isDetectionRunning = true;
         const toggleBtn = document.getElementById('toggleDetectionBtn');
-        const statusSpan = document.getElementById('detectionStatus');
 
-        toggleBtn.textContent = 'Stop Detection';
+        toggleBtn.textContent = 'Stop';
         toggleBtn.classList.add('running');
-        statusSpan.textContent = 'Running';
-        statusSpan.classList.remove('stopped');
-        statusSpan.classList.add('running');
 
-        // Close the panel when starting detection
-        const bottomPanel = document.getElementById('bottomPanel');
-        const mainContainer = document.querySelector('.main-container');
-
-        if (bottomPanel && mainContainer) {
-            bottomPanel.classList.remove('expanded');
-            bottomPanel.classList.add('collapsed');
-            mainContainer.classList.remove('panel-open');
-        }
+        // This logic was moved to the button's event listener
+        // to prevent the panel from closing when switching tabs.
 
         // Use the appropriate detector based on mode
         if (this.currentMode === 'face') {
@@ -237,19 +240,15 @@ class App {
             this.detector.startDetection(this.video);
         }
 
-        this.ui.updateStatus(`${this.currentMode === 'objects' ? 'Object' : 'Face'} detection running...`);
+        this.ui.updateStatus(`${this.currentMode === 'objects' ? 'Detecting objects…' : 'Detecting face…'}`);
     }
 
     stopDetection() {
         this.isDetectionRunning = false;
         const toggleBtn = document.getElementById('toggleDetectionBtn');
-        const statusSpan = document.getElementById('detectionStatus');
 
-        toggleBtn.textContent = 'Start Detection';
+        toggleBtn.textContent = 'Start';
         toggleBtn.classList.remove('running');
-        statusSpan.textContent = 'Stopped';
-        statusSpan.classList.remove('running');
-        statusSpan.classList.add('stopped');
 
         // Stop both detectors to be safe
         this.detector.stopDetection();
@@ -265,7 +264,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const bottomPanel = document.getElementById('bottomPanel');
     const mainContainer = document.querySelector('.main-container');
 
-    fabToggle.addEventListener('click', function() {
+    fabToggle.addEventListener('click', function(e) {
+        e.stopPropagation(); // Prevent this click from closing the panel immediately
         const isExpanded = bottomPanel.classList.contains('expanded');
 
         if (isExpanded) {
@@ -285,10 +285,8 @@ document.addEventListener('DOMContentLoaded', function() {
     document.addEventListener('click', function(event) {
         const isExpanded = bottomPanel.classList.contains('expanded');
 
-        if (isExpanded &&
-            !bottomPanel.contains(event.target) &&
-            !fabToggle.contains(event.target)) {
-
+        // Use .closest() to check if the click originated from within the panel
+        if (isExpanded && !event.target.closest('#bottomPanel') && event.target !== fabToggle) {
             bottomPanel.classList.remove('expanded');
             bottomPanel.classList.add('collapsed');
             mainContainer.classList.remove('panel-open');
