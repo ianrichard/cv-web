@@ -12,8 +12,8 @@
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.2/dist/coco-ssd.min.js"></script>
     <!-- Use the modern, compatible version of face-api.js -->
     <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@latest/dist/face-api.js"></script>
-  <script type="module" crossorigin src="/cv-web/assets/index-CIO4l3S6.js"></script>
-  <link rel="stylesheet" crossorigin href="/cv-web/assets/index-B-cTE-FK.css">
+  <script type="module" crossorigin src="/cv-web/assets/index-UpVC-tHv.js"></script>
+  <link rel="stylesheet" crossorigin href="/cv-web/assets/index-BijGKUND.css">
 </head>
 <body>
     <div class="main-container panel-open">
@@ -35,30 +35,18 @@
                 </div>
             </button>
 
-            <!-- Left Column: Metrics -->
-            <div class="metrics-section">
-                <div class="metrics-controls">
-                    <span id="statusText">Initializing...</span>
-                    <button id="toggleDetectionBtn" disabled>Start</button>
-                </div>
-                <div class="metrics-table">
-                    <div class="metric-row">
-                        <span class="metric-label">FPS</span>
-                        <span id="fpsCounter">0</span>
-                    </div>
-                    <div class="metric-row">
-                        <span class="metric-label">Inference Time</span>
-                        <span id="inferenceTime">0ms</span>
-                    </div>
-                    <div class="metric-row">
-                        <span class="metric-label">Objects Detected</span>
-                        <span id="objectCount">0</span>
-                    </div>
-                </div>
+            <!-- Model Loading Indicator Overlay -->
+            <div id="modelLoadingIndicator" style="display:flex; position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(20,20,20,0.98); z-index:9999; flex-direction:column; justify-content:center; align-items:center;">
+                <div class="model-loading-message" style="color:white;font-size:1.3rem;margin-bottom:1.5rem;">Downloading models…</div>
+                <div class="spinner" style="width:48px;height:48px;border:6px solid #007bff;border-top:6px solid #fff;border-radius:50%;animation:spin 1s linear infinite;"></div>
+                <div class="model-loading-progress" style="color:#aaa;margin-top:1.5rem;font-size:1rem;"></div>
+                <style>
+                    @keyframes spin { 100% { transform: rotate(360deg); } }
+                </style>
             </div>
 
             <!-- Right Column: Demo Settings -->
-            <div class="demo-section">
+            <div class="demo-section" style="display:none;">
                 <!-- Demo Mode Tabs -->
                 <div class="demo-tabs">
                     <button class="demo-tab active" data-tab="objects">Objects</button>
@@ -85,7 +73,7 @@
                             <label class="reference-label">Reference Image</label>
                             <div class="image-upload-area">
                                 <div class="current-reference" id="currentReference">
-                                    <img id="referencePreview" src="/cv-web/assets/face-XXN7lSkt.jpg" alt="Reference face"
+                                    <img id="referencePreview" src="/cv-web/assets/default-XXN7lSkt.jpg" alt="Reference face"
                                          onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
                                     <div class="no-image" style="display: none;">No reference image</div>
                                 </div>
@@ -96,6 +84,27 @@
                                 </div>
                             </div>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="metrics-section" style="display:none;">
+                <div class="metrics-controls">
+                    <span id="statusText">Initializing...</span>
+                    <button id="toggleDetectionBtn" disabled>Start</button>
+                </div>
+                <div class="metrics-table">
+                    <div class="metric-row">
+                        <span class="metric-label">FPS</span>
+                        <span id="fpsCounter">0</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Inference Time</span>
+                        <span id="inferenceTime">0ms</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Objects Detected</span>
+                        <span id="objectCount">0</span>
                     </div>
                 </div>
             </div>
