@@ -1,19 +1,19 @@
 export class DetectionSmoother {
     constructor(options = {}) {
-        this.smoothingFactor = options.smoothingFactor || 0.05;
-        this.maxDistance = options.maxDistance || 150;
-        this.maxFramesWithoutDetection = options.maxFramesWithoutDetection || 120;
+        this.smoothingFactor = options.smoothingFactor || 0.18; // Slightly higher for faster response
+        this.maxDistance = options.maxDistance || 120;
+        this.maxFramesWithoutDetection = options.maxFramesWithoutDetection || 60;
         this.minUpdateThreshold = options.minUpdateThreshold || 3;
 
         // Visual update timing - update displayed boxes even less frequently for faces
-        this.updateInterval = options.updateInterval || 30;
-        this.visualUpdateInterval = options.visualUpdateInterval || 60; // ~2 seconds at 30fps
+        this.updateInterval = options.updateInterval || 10; // More frequent updates
+        this.visualUpdateInterval = options.visualUpdateInterval || 20; // Faster visual updates
         this.frameCounter = 0;
 
-        // Much more conservative confidence settings
-        this.minConfidenceToShow = 0.05;
-        this.confidenceDecayRate = 0.005;
-        this.graceFrames = 30;
+        // Confidence settings for less flicker
+        this.minConfidenceToShow = 0.45; // Lower threshold to keep objects longer
+        this.confidenceDecayRate = 0.007; // Slower decay for smoother fade
+        this.graceFrames = 45; // Longer grace period before fading
 
         this.trackedObjects = new Map();
         this.nextId = 0;
@@ -182,16 +182,9 @@ export class DetectionSmoother {
     }
 
     smoothCoordinate(oldValue, newValue, factor) {
-        // Apply very heavy smoothing with larger deadband
         const diff = Math.abs(newValue - oldValue);
-
-        // Ignore very small movements completely
-        if (diff < 5) {
-            return oldValue;
-        }
-
-        // Much heavier smoothing - boxes should barely move
-        return oldValue * (1 - factor) + newValue * factor;
+        const dynamicFactor = diff > 50 ? Math.min(factor * 2, 0.3) : factor; // Faster updates for large movements
+        return oldValue * (1 - dynamicFactor) + newValue * dynamicFactor;
     }
 
     smoothValue(oldValue, newValue, factor) {
@@ -229,13 +222,11 @@ export class DetectionSmoother {
     cleanupOldObjects() {
         const now = Date.now();
         for (const [id, tracked] of this.trackedObjects) {
-            // For faces, remove after 3 seconds of no detection
-            // For objects, use the old logic
-            const maxFrames = tracked.isFaceRecognition ? 90 : this.maxFramesWithoutDetection;
-            const maxTime = tracked.isFaceRecognition ? 5000 : 20000;
+            const maxFrames = tracked.isFaceRecognition ? 50 : this.maxFramesWithoutDetection; // Lower for faces
+            const maxTime = tracked.isFaceRecognition ? 3000 : 10000; // Halve retention times
 
-            if (tracked.framesSinceDetection >= maxFrames &&
-                (!tracked.confidence || tracked.confidence < 0.01) &&
+            if (tracked.framesSinceDetection >= maxFrames ||
+                (tracked.confidence && tracked.confidence < 0.05) || // Remove lower confidence objects
                 now - tracked.createdAt > maxTime) {
                 this.trackedObjects.delete(id);
             }

@@ -82,8 +82,9 @@ class App {
     async loadFaceDetectionModel() {
         try {
             await this.faceDetector.loadModel();
-            await this.faceDetector.loadReferenceImage();
+            await this.faceDetector.loadReferenceImage('/images/face.jpg', 'default.jpg'); // Pass default name
             this.faceDetector.setCanvas(document.getElementById('output'));
+            this.faceDetector.referenceDescriptorName = 'default.jpg'; // Explicitly set default name
         } catch (error) {
             console.error('Face detection model loading failed:', error);
         }
@@ -117,8 +118,6 @@ class App {
         const uploadBtn = document.getElementById('uploadReferenceBtn');
         const fileInput = document.getElementById('referenceUpload');
         const resetBtn = document.getElementById('resetReferenceBtn');
-        const thresholdSlider = document.getElementById('similarityThreshold');
-        const thresholdValue = document.getElementById('thresholdValue');
 
         // Upload reference image
         uploadBtn.addEventListener('click', () => fileInput.click());
@@ -127,15 +126,17 @@ class App {
             const file = e.target.files[0];
             if (file && file.type.startsWith('image/')) {
                 const reader = new FileReader();
+                const fileName = file.name; // Extract the file name
                 reader.onload = async (e) => {
                     const img = new Image();
                     img.onload = async () => {
-                        console.log('Uploading image…');
+                        console.log(`Uploading image: ${fileName}`);
                         await this.faceDetector.loadReferenceImage(img);
+                        this.faceDetector.referenceDescriptorName = fileName; // Set the name in faceDetector
                         document.getElementById('referencePreview').src = e.target.result;
                         document.getElementById('referencePreview').style.display = 'block';
                         document.querySelector('.no-image').style.display = 'none';
-                        console.log('Reference image UI updated');
+                        console.log('Reference image and name updated');
                     };
                     img.src = e.target.result;
                 };
@@ -145,22 +146,14 @@ class App {
 
         // Reset to default
         resetBtn.addEventListener('click', async () => {
-            console.log('Resetting to default…');
+            console.log('Resetting to default reference image...');
             await this.faceDetector.loadReferenceImage();
+            this.faceDetector.referenceDescriptorName = 'default.jpg'; // Default to a generic name
             document.getElementById('referencePreview').src = '/images/face.jpg';
             document.getElementById('referencePreview').style.display = 'block';
             document.querySelector('.no-image').style.display = 'none';
-            console.log('Reset to default reference image complete');
+            console.log('Reference image reset to default');
         });
-
-        // Similarity threshold
-        thresholdSlider.addEventListener('input', (e) => {
-            const value = parseFloat(e.target.value);
-            thresholdValue.textContent = value.toFixed(2);
-            this.faceDetector.updateSettings({ similarityThreshold: value });
-        });
-
-        thresholdValue.textContent = '0.80';
     }
 
     switchDemoMode(mode) {

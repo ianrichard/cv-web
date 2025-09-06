@@ -193,13 +193,21 @@ export class FaceDetector {
         const scaledWidth = width * scaleX;
         const scaledHeight = height * scaleY;
 
-        this.ctx.strokeStyle = '#FF0000';
+        const similarityPercent = Math.min(100, this.currentFace.similarity * 100);
+        const isMatch = similarityPercent >= 25;
+
+        const boxColor = isMatch ? '#00FF00' : '#FF0000'; // Green if match, red otherwise
+        const name = this.referenceDescriptorName || 'Unknown'; // Default fallback if name is missing
+        const label = isMatch
+            ? `Face, probably ${name}`
+            : `Face, probably not ${name}`;
+
+        // Draw Bounding Box
+        this.ctx.strokeStyle = boxColor;
         this.ctx.lineWidth = 3;
         this.ctx.strokeRect(scaledX, scaledY, scaledWidth, scaledHeight);
 
-        const similarityPercent = Math.min(100, this.currentFace.similarity * 100);
-        const label = `Face Match ${similarityPercent.toFixed(0)}%`;
-
+        // Draw label
         this.ctx.font = 'bold 14px Arial';
         this.ctx.textAlign = 'left';
         this.ctx.textBaseline = 'top';
@@ -208,7 +216,7 @@ export class FaceDetector {
         const textWidth = textMetrics.width;
         const textHeight = 14 * 1.2;
 
-        this.ctx.fillStyle = '#FF0000';
+        this.ctx.fillStyle = boxColor;
         this.ctx.fillRect(scaledX, scaledY - textHeight - 8, textWidth + 12, textHeight + 4);
 
         this.ctx.fillStyle = '#000000';

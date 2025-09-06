@@ -30,3 +30,7 @@ This project requires Node.js (version 22 recommended) and npm. Using [nvm](http
 
 5.  **Open the application:**
     Open your web browser and navigate to `http://localhost:8080/`.
+
+## GitHub Pages
+
+This project can be deployed as a static site using GitHub Pages. After pushing to the repository, enable GitHub Pages in your repository settings and set the source to the `gh-pages` branch or the `/docs` folder, depending on your workflow.
