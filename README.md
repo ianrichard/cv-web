@@ -1,40 +1,69 @@
-# Real-Time CV Web Application
+# React + TypeScript + Vite
 
-A modern, browser-based computer vision application that performs real-time object detection and face recognition using a webcam feed, built with TensorFlow.js and `face-api.js`.
+This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
-## Demo
+Currently, two official plugins are available:
 
-[Live Demo](https://ianrichard.github.io/cv-web/)
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
 
-## How to Run
+## Expanding the ESLint configuration
 
-This project requires Node.js (version 22 recommended) and npm. Using [nvm](https://github.com/nvm-sh/nvm) (Node Version Manager) is advised to manage Node versions.
+If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
 
-1.  **Clone the repository:**
-    ```bash
-    git clone https://github.com/ianrichard/cv-web.git
-    cd cv-web
-    ```
+```js
+export default tseslint.config([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [
+      // Other configs...
 
-2.  **Set up Node.js (using nvm):**
-    ```bash
-    nvm install 22
-    nvm use 22
-    ```
+      // Remove tseslint.configs.recommended and replace with this
+      ...tseslint.configs.recommendedTypeChecked,
+      // Alternatively, use this for stricter rules
+      ...tseslint.configs.strictTypeChecked,
+      // Optionally, add this for stylistic rules
+      ...tseslint.configs.stylisticTypeChecked,
 
-3.  **Install dependencies:**
-    ```bash
-    npm install
-    ```
+      // Other configs...
+    ],
+    languageOptions: {
+      parserOptions: {
+        project: ['./tsconfig.node.json', './tsconfig.app.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+      // other options...
+    },
+  },
+])
+```
 
-4.  **Start the development server:**
-    ```bash
-    npm run dev
-    ```
+You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
 
-5.  **Open the application:**
-    Open your web browser and navigate to `http://localhost:8080/`.
+```js
+// eslint.config.js
+import reactX from 'eslint-plugin-react-x'
+import reactDom from 'eslint-plugin-react-dom'
 
-## GitHub Pages
-
-This project can be deployed as a static site using GitHub Pages. After pushing to the repository, enable GitHub Pages in your repository settings and set the source to the `gh-pages` branch or the `/docs` folder, depending on your workflow.
+export default tseslint.config([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [
+      // Other configs...
+      // Enable lint rules for React
+      reactX.configs['recommended-typescript'],
+      // Enable lint rules for React DOM
+      reactDom.configs.recommended,
+    ],
+    languageOptions: {
+      parserOptions: {
+        project: ['./tsconfig.node.json', './tsconfig.app.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+      // other options...
+    },
+  },
+])
+```
