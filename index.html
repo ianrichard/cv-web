@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CV Web Detection</title>
+    <!-- Use TensorFlow.js 3.x with explicit backends -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.20.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-cpu@3.20.0/dist/tf-backend-cpu.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl@3.20.0/dist/tf-backend-webgl.min.js"></script>
+    <!-- COCO-SSD for object detection -->
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.2/dist/coco-ssd.min.js"></script>
+    <!-- Use the modern, compatible version of face-api.js -->
+    <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@latest/dist/face-api.js"></script>
+  <script type="module" crossorigin src="/cv-web/assets/index-DIuBDFD0.js"></script>
+  <link rel="stylesheet" crossorigin href="/cv-web/assets/index-CQIm4BQc.css">
+</head>
+<body>
+    <div class="main-container panel-open">
+        <!-- Large Camera View (Top 3/4) -->
+        <div class="camera-section">
+            <div class="video-container">
+                <video id="webcam" autoplay muted playsinline></video>
+                <canvas id="output"></canvas>
+            </div>
+        </div>
+
+        <!-- Bottom Panel (Start Expanded) -->
+        <div class="bottom-panel expanded" id="bottomPanel">
+            <!-- FAB Toggle Button -->
+            <button class="fab-toggle" id="fabToggle">
+                <div class="fab-icon">
+                    <span class="line line1"></span>
+                    <span class="line line2"></span>
+                </div>
+            </button>
+
+            <!-- Left Column: Metrics -->
+            <div class="metrics-section">
+                <div class="metrics-controls">
+                    <span id="statusText">Initializing...</span>
+                    <button id="toggleDetectionBtn" disabled>Start</button>
+                </div>
+                <div class="metrics-table">
+                    <div class="metric-row">
+                        <span class="metric-label">FPS</span>
+                        <span id="fpsCounter">0</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Inference Time</span>
+                        <span id="inferenceTime">0ms</span>
+                    </div>
+                    <div class="metric-row">
+                        <span class="metric-label">Objects Detected</span>
+                        <span id="objectCount">0</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column: Demo Settings -->
+            <div class="demo-section">
+                <!-- Demo Mode Tabs -->
+                <div class="demo-tabs">
+                    <button class="demo-tab active" data-tab="objects">Objects</button>
+                    <button class="demo-tab" data-tab="face">Face</button>
+                </div>
+
+                <!-- Objects Tab Content -->
+                <div class="demo-content" id="objects-content">
+                    <div class="filters-content">
+                        <div class="tag-grid" id="tagGrid">
+                            <!-- Tags will be populated dynamically -->
+                        </div>
+                    </div>
+                    <div class="filter-actions" style="display: none;">
+                        <button id="selectAllBtn">Select All</button>
+                        <button id="selectNoneBtn">Clear All</button>
+                    </div>
+                </div>
+
+                <!-- Face Tab Content -->
+                <div class="demo-content" id="face-content" style="display: none;">
+                    <div class="face-settings">
+                        <div class="reference-image-section">
+                            <label class="reference-label">Reference Image</label>
+                            <div class="image-upload-area">
+                                <div class="current-reference" id="currentReference">
+                                    <img id="referencePreview" src="/cv-web/assets/face-XXN7lSkt.jpg" alt="Reference face"
+                                         onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                                    <div class="no-image" style="display: none;">No reference image</div>
+                                </div>
+                                <div class="upload-controls">
+                                    <input type="file" id="referenceUpload" accept="image/*" style="display: none;">
+                                    <button id="uploadReferenceBtn">Upload New</button>
+                                    <button id="resetReferenceBtn">Reset to Default</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>
