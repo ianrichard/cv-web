@@ -28,20 +28,20 @@ export class DetectionSmoother {
         const faceDetections = rawDetections.filter(d => d.isFaceRecognition);
         const otherDetections = rawDetections.filter(d => !d.isFaceRecognition);
 
-        // Pass through face detections completely unchanged - they handle their own stability
+        // Pass through face detections completely unchanged
         faceDetections.forEach(detection => {
             smoothedDetections.push({
                 ...detection,
-                id: 'face-' + this.frameCounter // Simple ID for faces
+                id: 'face-' + this.frameCounter
             });
         });
 
-        // Handle object detections with normal heavy smoothing
+        // Handle object detections with improved matching
         const shouldUpdate = this.frameCounter % this.updateInterval === 0;
         const shouldVisuallyUpdate = this.frameCounter % this.visualUpdateInterval === 0;
 
         const sortedTracked = Array.from(this.trackedObjects.entries())
-            .filter(([,tracked]) => !tracked.isFaceRecognition) // Only non-face objects
+            .filter(([,tracked]) => !tracked.isFaceRecognition)
             .sort(([,a], [,b]) => {
                 const stabilityDiff = (b.stabilityFrames || 0) - (a.stabilityFrames || 0);
                 if (Math.abs(stabilityDiff) > 30) return stabilityDiff;
@@ -52,16 +52,20 @@ export class DetectionSmoother {
             let bestMatch = null;
             let bestDistance = Infinity;
             let bestIndex = -1;
+            let bestIoU = 0;
 
             otherDetections.forEach((detection, detectionIndex) => {
                 if (usedDetections.has(detectionIndex)) return;
 
                 if (this.classesMatch(detection.class, tracked.class)) {
                     const distance = this.calculateDistance(tracked.smoothedBbox || tracked.displayedBbox, detection.bbox);
-                    if (distance < this.maxDistance && distance < bestDistance) {
+                    const iou = this.calculateIoU(tracked.smoothedBbox || tracked.displayedBbox, detection.bbox);
+                    // Require at least 30% overlap (IoU) for a match
+                    if (distance < this.maxDistance && iou > 0.3 && distance < bestDistance) {
                         bestMatch = detection;
                         bestDistance = distance;
                         bestIndex = detectionIndex;
+                        bestIoU = iou;
                     }
                 }
             });
@@ -136,39 +140,60 @@ export class DetectionSmoother {
             }
         }
 
-        // Add new non-face detections
+        // Add new non-face detections that don't overlap with existing tracked objects
         otherDetections.forEach((detection, detectionIndex) => {
             if (!usedDetections.has(detectionIndex)) {
-                const newId = this.nextId++;
-
-                this.trackedObjects.set(newId, {
-                    id: newId,
-                    class: detection.class,
-                    smoothedBbox: [...detection.bbox],
-                    displayedBbox: [...detection.bbox],
-                    score: detection.score,
-                    framesSinceDetection: 0,
-                    framesSinceLastUpdate: 0,
-                    framesSinceLastVisualUpdate: 0,
-                    confidence: 0.9,
-                    stabilityFrames: 0,
-                    createdAt: Date.now()
-                });
-
-                smoothedDetections.push({
-                    ...detection,
-                    id: newId,
-                    isNew: true
-                });
+                // Check for overlap with existing tracked objects of same class
+                let isDuplicate = false;
+                for (const [, tracked] of this.trackedObjects) {
+                    if (this.classesMatch(detection.class, tracked.class)) {
+                        const iou = this.calculateIoU(tracked.displayedBbox || tracked.smoothedBbox, detection.bbox);
+                        if (iou > 0.3) {
+                            isDuplicate = true;
+                            break;
+                        }
+                    }
+                }
+                if (!isDuplicate) {
+                    const newId = this.nextId++;
+                    this.trackedObjects.set(newId, {
+                        id: newId,
+                        class: detection.class,
+                        smoothedBbox: [...detection.bbox],
+                        displayedBbox: [...detection.bbox],
+                        score: detection.score,
+                        framesSinceDetection: 0,
+                        framesSinceLastUpdate: 0,
+                        framesSinceLastVisualUpdate: 0,
+                        confidence: 0.9,
+                        stabilityFrames: 0,
+                        createdAt: Date.now()
+                    });
+                    smoothedDetections.push({
+                        ...detection,
+                        id: newId,
+                        isNew: true
+                    });
+                }
             }
         });
 
-        // Clean up old objects (including old faces)
+        // Filter out duplicates in the final recognized array
+        const filteredDetections = [];
+        smoothedDetections.forEach(det => {
+            const isDuplicate = filteredDetections.some(existing =>
+                this.classesMatch(det.class, existing.class) &&
+                this.calculateIoU(det.bbox, existing.bbox) > 0.5
+            );
+            if (!isDuplicate) filteredDetections.push(det);
+        });
+
+        // Clean up old objects
         if (this.frameCounter % 300 === 0) {
             this.cleanupOldObjects();
         }
 
-        return smoothedDetections;
+        return filteredDetections;
     }
 
     applySmoothingToBbox(oldBbox, newBbox, customFactor = null) {
@@ -243,5 +268,21 @@ export class DetectionSmoother {
             trackedCount: this.trackedObjects.size,
             nextId: this.nextId
         };
+    }
+
+    // Add IoU calculation for bounding boxes
+    calculateIoU(bboxA, bboxB) {
+        if (!bboxA || !bboxB) return 0;
+        const [xA, yA, wA, hA] = bboxA;
+        const [xB, yB, wB, hB] = bboxB;
+        const x1 = Math.max(xA, xB);
+        const y1 = Math.max(yA, yB);
+        const x2 = Math.min(xA + wA, xB + wB);
+        const y2 = Math.min(yA + hA, yB + hB);
+        const intersection = Math.max(0, x2 - x1) * Math.max(0, y2 - y1);
+        const areaA = wA * hA;
+        const areaB = wB * hB;
+        const union = areaA + areaB - intersection;
+        return union > 0 ? intersection / union : 0;
     }
 }

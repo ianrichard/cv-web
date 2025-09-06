@@ -124,8 +124,18 @@ export class Detector {
             }
             // --------------------------------
 
+            // Remove duplicate labels, keep highest confidence
+            const unique = {};
+            smoothedPredictions.forEach(obj => {
+                const label = obj.class || obj.label;
+                if (!unique[label] || obj.score > unique[label].score) {
+                    unique[label] = obj;
+                }
+            });
+            const dedupedPredictions = Object.values(unique);
+
             // Build recognizedObjects array with horizontally flipped positions
-            const recognizedObjects = smoothedPredictions.map((obj, idx) => {
+            const recognizedObjects = dedupedPredictions.map((obj, idx) => {
                 const [x0, y0, w0, h0] = obj.bbox;
                 // Flip horizontally for mirrored video
                 const xFlipped = overlayWidth - (x0 * scaleX + offsetX + w0 * scaleX);
@@ -142,7 +152,7 @@ export class Detector {
 
             if (this.onObjectsUpdate) this.onObjectsUpdate(recognizedObjects);
 
-            this.objectCount = smoothedPredictions.length;
+            this.objectCount = dedupedPredictions.length;
 
         } catch (error) {
             console.error('Detection error:', error);
