@@ -255,7 +255,7 @@ export class Detector {
             // Color coding
             let color = '#00FF00';
             if (prediction.isFaceRecognition) {
-                color = '#FF0000'; // Always red for face matches
+                color = '#FF0000';
             } else {
                 switch (prediction.class) {
                     case 'person': color = '#FF6B6B'; break;
@@ -275,15 +275,14 @@ export class Detector {
             this.ctx.strokeStyle = color;
             this.ctx.lineWidth = prediction.isFaceRecognition ? 3 : 2;
             this.ctx.setLineDash([]);
+            // Flip X for mirrored canvas
             this.ctx.strokeRect(scaledX, scaledY, scaledWidth, scaledHeight);
 
-            // Draw label - simplified for face recognition
+            // Draw label
             let label;
             if (prediction.isFaceRecognition) {
-                // Only show the similarity percentage - that's what matters
                 label = `${prediction.class} ${(prediction.similarity * 100).toFixed(0)}%`;
             } else {
-                // Regular object detection label
                 label = `${prediction.class}: ${(prediction.score * 100).toFixed(0)}%`;
             }
 

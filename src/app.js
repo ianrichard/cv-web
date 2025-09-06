@@ -17,6 +17,8 @@ class App {
         window.detector = this.detector;
         window.modelManager = this.modelManager;
         window.faceDetector = this.faceDetector; // Fixed: correct reference
+
+        this.modelLoadingIndicator = document.getElementById('modelLoadingIndicator');
     }
 
     async init() {
@@ -30,17 +32,23 @@ class App {
             this.ui.updateStatus('Setting up camera…');
             this.video = await this.setupCamera();
 
+            // Show loading indicator for models
+            this.showModelLoadingIndicator('Downloading models…');
+
             this.ui.updateStatus('Loading models…');
             await Promise.all([
                 this.loadObjectDetectionModel(),
                 this.loadFaceDetectionModel()
             ]);
 
+            this.hideModelLoadingIndicator();
+
             this.ui.updateStatus('Model ready');
             this.setupEventListeners();
             this.setupDemoTabs();
 
         } catch (error) {
+            this.hideModelLoadingIndicator();
             console.error('Initialization failed:', error);
             this.ui.updateStatus(`Initialization failed: ${error.message}`);
         }
@@ -48,6 +56,8 @@ class App {
 
     async setupCamera() {
         const video = document.getElementById('webcam');
+        // Remove mirror effect
+        video.style.transform = '';
         const stream = await navigator.mediaDevices.getUserMedia({
             video: { width: 1280, height: 720 }
         });
@@ -57,9 +67,34 @@ class App {
         });
     }
 
+    showModelLoadingIndicator(message = 'Downloading models…', progress = null) {
+        if (this.modelLoadingIndicator) {
+            this.modelLoadingIndicator.style.display = 'flex';
+            this.modelLoadingIndicator.querySelector('.model-loading-message').textContent = message;
+            if (progress !== null) {
+                this.modelLoadingIndicator.querySelector('.model-loading-progress').textContent = `${progress}%`;
+            } else {
+                this.modelLoadingIndicator.querySelector('.model-loading-progress').textContent = '';
+            }
+        }
+    }
+
+    hideModelLoadingIndicator() {
+        if (this.modelLoadingIndicator) {
+            this.modelLoadingIndicator.style.display = 'none';
+        }
+        // Show settings panel sections
+        const metricsSection = document.querySelector('.metrics-section');
+        const demoSection = document.querySelector('.demo-section');
+        if (metricsSection) metricsSection.style.display = '';
+        if (demoSection) demoSection.style.display = '';
+    }
+
     async loadObjectDetectionModel() {
         try {
+            this.showModelLoadingIndicator('Downloading object detection model…');
             await this.modelManager.loadModel();
+            this.hideModelLoadingIndicator();
             this.ui.setupTagFilters(this.modelManager);
 
             // Show the filter actions only after the tags are populated
@@ -75,17 +110,23 @@ class App {
             this.detector.setModel(modelWrapper, 'COCO-SSD');
 
         } catch (error) {
+            this.hideModelLoadingIndicator();
             console.error('Object detection model loading failed:', error);
         }
     }
 
     async loadFaceDetectionModel() {
         try {
+            this.showModelLoadingIndicator('Downloading face detection model…');
             await this.faceDetector.loadModel();
-            await this.faceDetector.loadReferenceImage('/images/face.jpg', 'default.jpg'); // Pass default name
+            // Use Vite base path dynamically
+            const base = import.meta.env.BASE_URL || '/';
+            await this.faceDetector.loadReferenceImage(`${base}images/default.jpg`);
             this.faceDetector.setCanvas(document.getElementById('output'));
-            this.faceDetector.referenceDescriptorName = 'default.jpg'; // Explicitly set default name
+            this.faceDetector.referenceDescriptorName = 'default.jpg';
+            this.hideModelLoadingIndicator();
         } catch (error) {
+            this.hideModelLoadingIndicator();
             console.error('Face detection model loading failed:', error);
         }
     }

@@ -395,6 +395,12 @@ body {
     will-change: transform;
 }
 
+@media (max-height: 600px) {
+    .bottom-panel.expanded .fab-toggle {
+        top: 8px;
+    }
+}
+
 .fab-toggle:hover {
     transform: scale(1.05);
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
@@ -691,16 +697,7 @@ body {
         flex: 1;
     }
 
-    .image-upload-area {
-        flex-direction: column;
-        align-items: center;
-    }
-
     .upload-controls {
         width: 100%;
-    }
-
-    .demo-tabs {
-        justify-content: center;
     }
 }
