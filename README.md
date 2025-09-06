@@ -2,6 +2,10 @@
 
 A modern, browser-based computer vision application that performs real-time object detection and face recognition using a webcam feed, built with TensorFlow.js and `face-api.js`.
 
+## Demo
+
+[Live Demo](https://ianrichard.github.io/cv-web/)
+
 ## How to Run
 
 This project requires Node.js (version 22 recommended) and npm. Using [nvm](https://github.com/nvm-sh/nvm) (Node Version Manager) is advised to manage Node versions.
