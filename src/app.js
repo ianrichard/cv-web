@@ -56,8 +56,8 @@ class App {
 
     async setupCamera() {
         const video = document.getElementById('webcam');
-        // Remove mirror effect
-        video.style.transform = '';
+        // Apply mirror effect for horizontal flip
+        video.style.transform = 'scaleX(-1)';
         const stream = await navigator.mediaDevices.getUserMedia({
             video: { width: 1280, height: 720 }
         });
@@ -129,6 +129,20 @@ class App {
             this.hideModelLoadingIndicator();
             console.error('Face detection model loading failed:', error);
         }
+    }
+
+    // Helper to get horizontally flipped frame as canvas
+    getFlippedFrame(video) {
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.save();
+        ctx.translate(canvas.width, 0);
+        ctx.scale(-1, 1);
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        ctx.restore();
+        return canvas;
     }
 
     setupDemoTabs() {
@@ -264,13 +278,12 @@ class App {
         toggleBtn.textContent = 'Stop';
         toggleBtn.classList.add('running');
 
-        // This logic was moved to the button's event listener
-        // to prevent the panel from closing when switching tabs.
-
         // Use the appropriate detector based on mode
         if (this.currentMode === 'face') {
+            // Pass video element to faceDetector, let it flip each frame internally
             this.faceDetector.startDetection(this.video);
         } else {
+            // Pass video element to detector, let it flip each frame internally
             this.detector.startDetection(this.video);
         }
 

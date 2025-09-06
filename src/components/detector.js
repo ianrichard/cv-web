@@ -123,8 +123,9 @@ export class Detector {
 
     async startDetection(videoElement) {
         this.isDetecting = true;
-        this.updateCanvasSize(); // Ensure proper sizing before starting
-        this.detectLoop(videoElement);
+        this.updateCanvasSize();
+        this.videoElement = videoElement; // Store original video for drawing/scaling
+        this.detectLoop();
     }
 
     stopDetection() {
@@ -134,22 +135,24 @@ export class Detector {
         }
     }
 
-    async detectLoop(videoElement) {
+    async detectLoop() {
         if (!this.isDetecting || !this.model) return;
 
         const currentTime = performance.now();
         if (currentTime - this.lastFrameTime < this.frameInterval) {
-            this.animationFrame = requestAnimationFrame(() => this.detectLoop(videoElement));
+            this.animationFrame = requestAnimationFrame(() => this.detectLoop());
             return;
         }
         this.lastFrameTime = currentTime;
 
         try {
-            // Clear with proper scaling
             this.ctx.clearRect(0, 0, this.canvasWidth, this.canvasHeight);
 
+            // Flip the video frame before inference
+            const flippedFrame = this.getFlippedFrame(this.videoElement);
+
             const startTime = performance.now();
-            const rawPredictions = await this.model.detect(videoElement);
+            const rawPredictions = await this.model.detect(flippedFrame);
             const inferenceTime = performance.now() - startTime;
 
             // Filter by confidence threshold first
@@ -158,15 +161,30 @@ export class Detector {
             // Apply smoothing to reduce jumpiness - this handles faces and objects
             const smoothedPredictions = this.smoother.smoothDetections(filteredPredictions);
 
+            // Use original videoElement for drawing/scaling
             this.objectCount = smoothedPredictions.length;
-            this.drawPredictions(smoothedPredictions, videoElement);
+            this.drawPredictions(smoothedPredictions, this.videoElement);
             this.updatePerformanceStats(currentTime, inferenceTime);
 
         } catch (error) {
             console.error('Detection error:', error);
         }
 
-        this.animationFrame = requestAnimationFrame(() => this.detectLoop(videoElement));
+        this.animationFrame = requestAnimationFrame(() => this.detectLoop());
+    }
+
+    // Helper to get horizontally flipped frame as canvas
+    getFlippedFrame(video) {
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.save();
+        ctx.translate(canvas.width, 0);
+        ctx.scale(-1, 1);
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        ctx.restore();
+        return canvas;
     }
 
     setFaceRecognitionManager(faceRecognitionManager) {

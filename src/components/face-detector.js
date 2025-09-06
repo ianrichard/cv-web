@@ -110,8 +110,13 @@ export class FaceDetector {
             const shouldDetect = this.frameCount % 10 === 0; // Detect every 10 frames
 
             if (shouldDetect) {
-                // Correctly await the full promise chain from face-api.js
-                const detection = await faceapi.detectSingleFace(this.videoElement, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
+                // Flip the video frame before inference
+                const flippedFrame = this.getFlippedFrame(this.videoElement);
+
+                const detection = await faceapi
+                    .detectSingleFace(flippedFrame, new faceapi.TinyFaceDetectorOptions())
+                    .withFaceLandmarks()
+                    .withFaceDescriptor();
 
                 if (detection && this.referenceDescriptor) {
                     const distance = faceapi.euclideanDistance(this.referenceDescriptor, detection.descriptor);
@@ -145,6 +150,20 @@ export class FaceDetector {
         }
 
         this.animationFrame = requestAnimationFrame(() => this.detectLoop());
+    }
+
+    // Helper to get horizontally flipped frame as canvas
+    getFlippedFrame(video) {
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.save();
+        ctx.translate(canvas.width, 0);
+        ctx.scale(-1, 1);
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        ctx.restore();
+        return canvas;
     }
 
     updateFace(face, distance) {

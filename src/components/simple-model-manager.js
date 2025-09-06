@@ -4,16 +4,18 @@ export class SimpleModelManager {
         this.modelLoaded = false;
         this.enabledTags = new Set();
         this.allTags = [
-            'person', 'bottle', 'cup', 'fork', 'spoon', 'bowl', 'banana',
+            'person',
+            'cell phone',
+            'bottle', 'cup', 'fork', 'spoon', 'bowl', 'banana',
             'apple', 'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog',
             'pizza', 'donut', 'cake', 'chair', 'couch', 'potted plant', 'bed',
             'dining table', 'tv', 'laptop', 'mouse', 'remote', 'keyboard',
-            'cell phone', 'book', 'clock', 'scissors', 'teddy bear',
+            'book', 'clock', 'scissors', 'teddy bear',
             'toothbrush'
         ];
 
-        // Enable all tags by default
-        this.enabledTags = new Set(this.allTags);
+        // Enable only 'person' and 'cell phone' by default
+        this.enabledTags = new Set(['person', 'cell phone']);
     }
 
     async loadModel() {

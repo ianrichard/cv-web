@@ -382,7 +382,7 @@ body {
     right: 2rem;
     width: 56px;
     height: 56px;
-    background: #007bff;
+    background-color: rgba(20, 20, 20, 0.95);
     border: none;
     border-radius: 50%;
     cursor: pointer;
@@ -395,9 +395,15 @@ body {
     will-change: transform;
 }
 
-@media (max-height: 600px) {
+@media (max-height: 845px) {
+    .fab-toggle {
+        right: 24px;
+    }
     .bottom-panel.expanded .fab-toggle {
-        top: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        bottom: 24px;
+        position: fixed;
+        top: auto;
     }
 }
 
@@ -471,7 +477,7 @@ body {
 /* Responsive Design */
 @media (max-width: 768px) {
     .bottom-panel {
-        flex-direction: column;
+        flex-direction: column-reverse;
     }
 
     .metrics-section {
