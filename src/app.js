@@ -2,6 +2,7 @@ import { Detector } from './components/detector.js';
 import { SimpleModelManager } from './components/simple-model-manager.js';
 import { FaceDetector } from './components/face-detector.js'; // Use the dedicated FaceDetector
 import { UI } from './components/ui.js';
+import { renderRecognizedObjects } from './utils/helpers.js';
 
 class App {
     constructor() {
@@ -12,6 +13,7 @@ class App {
         this.video = null;
         this.isDetectionRunning = false;
         this.currentMode = 'objects'; // 'objects' or 'face'
+        this.recognizedObjects = [];
 
         // Expose for debugging
         window.detector = this.detector;
@@ -122,27 +124,12 @@ class App {
             // Use Vite base path dynamically
             const base = import.meta.env.BASE_URL || '/';
             await this.faceDetector.loadReferenceImage(`${base}images/default.jpg`);
-            this.faceDetector.setCanvas(document.getElementById('output'));
             this.faceDetector.referenceDescriptorName = 'default.jpg';
             this.hideModelLoadingIndicator();
         } catch (error) {
             this.hideModelLoadingIndicator();
             console.error('Face detection model loading failed:', error);
         }
-    }
-
-    // Helper to get horizontally flipped frame as canvas
-    getFlippedFrame(video) {
-        const canvas = document.createElement('canvas');
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        const ctx = canvas.getContext('2d');
-        ctx.save();
-        ctx.translate(canvas.width, 0);
-        ctx.scale(-1, 1);
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        ctx.restore();
-        return canvas;
     }
 
     setupDemoTabs() {
@@ -274,17 +261,19 @@ class App {
     startDetection() {
         this.isDetectionRunning = true;
         const toggleBtn = document.getElementById('toggleDetectionBtn');
-
         toggleBtn.textContent = 'Stop';
         toggleBtn.classList.add('running');
 
-        // Use the appropriate detector based on mode
         if (this.currentMode === 'face') {
-            // Pass video element to faceDetector, let it flip each frame internally
-            this.faceDetector.startDetection(this.video);
+            this.faceDetector.startDetection(this.video, (objects) => {
+                this.recognizedObjects = objects;
+                renderRecognizedObjects(objects);
+            });
         } else {
-            // Pass video element to detector, let it flip each frame internally
-            this.detector.startDetection(this.video);
+            this.detector.startDetection(this.video, (objects) => {
+                this.recognizedObjects = objects;
+                renderRecognizedObjects(objects);
+            });
         }
 
         this.ui.updateStatus(`${this.currentMode === 'objects' ? 'Detecting objects…' : 'Detecting face…'}`);
@@ -300,6 +289,9 @@ class App {
         // Stop both detectors to be safe
         this.detector.stopDetection();
         this.faceDetector.stopDetection();
+
+        this.recognizedObjects = [];
+        renderRecognizedObjects([]);
 
         this.ui.updateStatus('Detection stopped');
     }
