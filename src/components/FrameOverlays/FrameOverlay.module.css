@@ -1,0 +1,19 @@
+.overlay {
+  border: 2px solid #00ff00;
+  border-radius: 0 16px 16px 16px;
+  background: rgba(0,255,0,0.05);
+  z-index: 10;
+  transition: all 3s;
+}
+
+.label {
+  position: absolute;
+  left: 0;
+  background: #00ff00;
+  color: #222;
+  padding: 2px 8px;
+  border-radius: 0 0 6px 0;
+  font-size: 14px;
+  font-weight: 600;
+  pointer-events: none;
+}
