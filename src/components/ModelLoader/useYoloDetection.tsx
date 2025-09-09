@@ -1,18 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect } from "react";
 import * as tf from "@tensorflow/tfjs";
 import "@tensorflow/tfjs-backend-webgl";
-import FrameOverlays from "../FrameOverlays/FrameOverlays";
-import VideoStream from "../VideoStream/VideoStream";
 import { loadYoloModel, yoloDetectStream, type Detection } from "../../utils/yoloDetectStream";
-
-type DetectedObject = {
-  id: number;
-  label: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-};
+import { useAppState } from "../../context/useAppState";
 
 const COCO_LABELS = [
   "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck", "boat", "traffic light",
@@ -26,16 +16,14 @@ const COCO_LABELS = [
   "scissors", "teddy bear", "hair drier", "toothbrush"
 ];
 
-const FILTER_LABELS = new Set(["person", "laptop", "cell phone"]);
-
-export default function ModelLoader() {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const [detectedObjects, setDetectedObjects] = useState<DetectedObject[]>([]);
+export function useYoloDetection(videoRef: React.RefObject<HTMLVideoElement>, filterLabels: string[]) {
+  const { setDetectedObjects } = useAppState();
 
   useEffect(() => {
     let stopDetect: (() => void) | undefined;
     let model: tf.GraphModel | null = null;
     let isMounted = true;
+    const FILTER_LABELS = new Set(filterLabels);
 
     const runYolo = async () => {
       await tf.setBackend("webgl");
@@ -56,7 +44,7 @@ export default function ModelLoader() {
         model,
         (detections: Detection) => {
           if (!isMounted) return;
-          const objects: DetectedObject[] = [];
+          const objects = [];
           for (let i = 0; i < detections.boxes.length / 4; i++) {
             const y1 = detections.boxes[i * 4 + 0];
             const x1 = detections.boxes[i * 4 + 1];
@@ -94,12 +82,5 @@ export default function ModelLoader() {
       isMounted = false;
       if (stopDetect) stopDetect();
     };
-  }, []);
-
-  return (
-    <>
-      <VideoStream ref={videoRef} />
-      <FrameOverlays detectedObjects={detectedObjects} />
-    </>
-  );
+  }, [videoRef, setDetectedObjects, filterLabels]);
 }

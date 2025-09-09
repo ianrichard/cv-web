@@ -1,18 +1,18 @@
 import { MantineProvider } from "@mantine/core";
-
 import "@mantine/core/styles.css";
-// import FrameOverlays from "./components/FrameOverlays/FrameOverlays";
+import VideoStream from "./components/VideoStream/VideoStream";
+import FrameOverlays from "./components/FrameOverlays/FrameOverlays";
 import SettingsPanel from "./components/SettingsPanel/SettingsPanel";
-// import VideoStream from "./components/VideoStream/VideoStream";
-import ModelLoader from "./components/ModelLoader/ModelLoader";
+import { AppStateProvider } from "./context/AppStateProvider";
 
 function App() {
   return (
     <MantineProvider>
-      <ModelLoader />
-      {/* <VideoStream /> */}
-      {/* <FrameOverlays /> */}
-      <SettingsPanel />
+      <AppStateProvider>
+        <VideoStream />
+        <FrameOverlays />
+        <SettingsPanel />
+      </AppStateProvider>
     </MantineProvider>
   );
 }

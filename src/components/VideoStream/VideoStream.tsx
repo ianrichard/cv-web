@@ -1,16 +1,20 @@
-import { useEffect, useImperativeHandle, useRef, forwardRef } from 'react';
+import React, { useEffect, useImperativeHandle, useRef, forwardRef } from 'react';
+import { useYoloDetection } from '../ModelLoader/useYoloDetection';
+import { useAppState } from '../../context/useAppState';
 
-const VideoStream = forwardRef<HTMLVideoElement, {}>((props, ref) => {
-  const localVideoRef = useRef<HTMLVideoElement>(null);
+const VideoStream = forwardRef<HTMLVideoElement, object>((_, ref) => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const { checked } = useAppState();
+  useYoloDetection(videoRef as React.RefObject<HTMLVideoElement>, checked);
 
-  useImperativeHandle(ref, () => localVideoRef.current as HTMLVideoElement);
+  useImperativeHandle(ref, () => videoRef.current as HTMLVideoElement);
 
   useEffect(() => {
     async function enableCamera() {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-        if (localVideoRef.current) {
-          localVideoRef.current.srcObject = stream;
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false, });
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
         }
       } catch (err) {
         // Handle error (camera permissions, etc.)
@@ -18,8 +22,8 @@ const VideoStream = forwardRef<HTMLVideoElement, {}>((props, ref) => {
     }
     enableCamera();
     return () => {
-      if (localVideoRef.current && localVideoRef.current.srcObject) {
-        const tracks = (localVideoRef.current.srcObject as MediaStream).getTracks();
+      if (videoRef.current && videoRef.current.srcObject) {
+        const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
         tracks.forEach(track => track.stop());
       }
     };
@@ -27,18 +31,10 @@ const VideoStream = forwardRef<HTMLVideoElement, {}>((props, ref) => {
 
   return (
     <video
-      ref={localVideoRef}
+      ref={videoRef}
       autoPlay
-      playsInline
       muted
-      style={{
-        position: 'fixed',
-        inset: 0,
-        width: '100vw',
-        height: '100vh',
-        objectFit: 'cover',
-        zIndex: 0,
-      }}
+      style={{ width: '100vw', height: '100vh', objectFit: 'cover', position: 'fixed', inset: 0, zIndex: 1 }}
     />
   );
 });

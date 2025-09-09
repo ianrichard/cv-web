@@ -1,46 +1,10 @@
-import { useState } from "react";
 import { Checkbox, Button, Group, SimpleGrid } from "@mantine/core";
 import DetectButton from "./DetectButton";
-
-const OBJECT_LABELS = [
-  "person",
-  "cell phone",
-  "bottle",
-  "cup",
-  "fork",
-  "spoon",
-  "bowl",
-  "banana",
-  "apple",
-  "sandwich",
-  "orange",
-  "broccoli",
-  "carrot",
-  "hot dog",
-  "pizza",
-  "donut",
-  "cake",
-  "chair",
-  "couch",
-  "potted plant",
-  "bed",
-  "dining table",
-  "tv",
-  "laptop",
-  "mouse",
-  "remote",
-  "keyboard",
-  "book",
-  "clock",
-  "scissors",
-  "teddy bear",
-  "toothbrush",
-];
-
-const DEFAULT_CHECKED = ["person", "cell phone"];
+import { useAppState } from "../../context/useAppState";
+import { OBJECT_LABELS } from "../../constants/objectLabels";
 
 export default function Objects() {
-  const [checked, setChecked] = useState<string[]>(DEFAULT_CHECKED);
+  const { checked, setChecked } = useAppState();
 
   const selectAll = () => setChecked([...OBJECT_LABELS]);
   const clearAll = () => setChecked([]);

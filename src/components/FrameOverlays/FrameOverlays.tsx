@@ -1,19 +1,9 @@
+import { useAppState } from '../../context/useAppState';
 import FrameOverlay from './FrameOverlay';
 
-type DetectedObject = {
-  id: number;
-  label: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-};
-
-interface Props {
-  detectedObjects: DetectedObject[];
-}
-
-export default function FrameOverlays({ detectedObjects = [] }: Props) {
+export default function FrameOverlays() {
+  const { detectedObjects } = useAppState();
+  console.log(detectedObjects)
   return (
     <div
       style={{
@@ -25,7 +15,7 @@ export default function FrameOverlays({ detectedObjects = [] }: Props) {
         zIndex: 10,
       }}
     >
-      {detectedObjects.map((obj: DetectedObject) => (
+      {detectedObjects.map((obj) => (
         <FrameOverlay key={obj.id} {...obj} />
       ))}
     </div>
